@@ -1,0 +1,16 @@
+[
+  {
+    "text": "Espacio!",
+    "description": "PLanetas, efectos sonoros de JapeNtaca con textos y voz de Fernanda Orazi",
+    "link": "./espacio/index.html"
+  },
+  {
+    "text": "Armonicos de Fibonacci",
+    "description": "Generador de armonicos basado en la sucesión de Fibonacci con arpegiador y LFOs para modulación de parámetros.",
+    "link": "https://japentaca.github.io/fibonacci_harmonics/"
+  },{
+    "text": "Aros y Postes",
+    "description": "Una cosa para quedarse mirando un rato cuando se está al gas",
+    "link": "https://japentaca.github.io/aros-y-postes/"
+  }
+]

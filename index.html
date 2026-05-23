@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='30%25' r='70%25'%3E%3Cstop offset='0' stop-color='%23ff7b7b'/%3E%3Cstop offset='1' stop-color='%23d10000'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 57C24 49 7 35 7 21C7 13 13 7 21 7c4.5 0 8.5 2.1 11 5.4C34.5 9.1 38.5 7 43 7c8 0 14 6 14 14c0 14-17 28-25 36z'/%3E%3C/svg%3E">
+    <title>Jape's web portal</title>
+    <style>
+        :root {
+            --c-cyan: #00ffff;
+            --c-magenta: #ff00ff;
+            --c-yellow: #ffff00;
+            --c-green: #00ff00;
+            --c-red: #ff0000;
+            --c-black: #000000;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        body {
+            font-family: "Comic Sans MS", "Trebuchet MS", cursive;
+        }
+
+        #intro {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 10px;
+            background:
+                radial-gradient(circle at 15% 20%, #3a0064 0%, rgba(58, 0, 100, 0) 42%),
+                radial-gradient(circle at 80% 70%, #00416a 0%, rgba(0, 65, 106, 0) 38%),
+                #050013;
+            z-index: 20;
+            transition: opacity 1400ms ease;
+        }
+
+        #matrixRain {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.26;
+            mix-blend-mode: screen;
+            pointer-events: none;
+        }
+
+        #intro.fade {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #retro-page {
+            width: min(900px, 92vw);
+            max-height: min(760px, 94vh);
+            overflow: auto;
+            border: 6px solid var(--c-red);
+            background: var(--c-cyan);
+            color: var(--c-magenta);
+            text-align: center;
+            padding: 14px 10px;
+            box-shadow: 0 0 0 4px #fff, 0 0 36px rgba(255, 255, 0, 0.7);
+            background-image:
+                repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.1) 0 2px, rgba(255, 255, 255, 0) 2px 6px),
+                repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.12) 0 5px, rgba(0, 0, 0, 0) 5px 10px),
+                linear-gradient(135deg, #00ffff 0%, #00cfd2 100%);
+            position: relative;
+            z-index: 2;
+        }
+
+        #retro-page h1 {
+            margin: 0 0 8px;
+            font-size: clamp(22px, 4.8vw, 46px);
+            white-space: nowrap;
+            text-shadow: 2px 2px var(--c-yellow);
+            background: linear-gradient(180deg, #ffd67a 0%, #ff7f27 45%, #ff1e00 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            filter: drop-shadow(0 0 9px rgba(255, 64, 0, 0.7));
+            animation: fireFlicker 1.2s ease-in-out infinite;
+        }
+
+        @keyframes fireFlicker {
+            0%,
+            100% { transform: translateY(0); filter: drop-shadow(0 0 8px rgba(255, 68, 0, 0.68)); }
+            50% { transform: translateY(-1px); filter: drop-shadow(0 0 12px rgba(255, 220, 120, 0.9)); }
+        }
+
+        .panel {
+            margin: 0 auto;
+            width: min(100%, 872px);
+            border: 5px solid var(--c-red);
+            background: var(--c-black);
+            color: var(--c-magenta);
+            padding: 14px 12px;
+        }
+
+        .panel p {
+            margin: 7px 0;
+            line-height: 1.16;
+        }
+
+        .visitor-counter {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 4px 10px;
+            border: 2px solid var(--c-green);
+            background: #001600;
+            color: var(--c-green);
+            font-family: "Courier New", monospace;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .blink {
+            animation: blink 1s linear infinite;
+        }
+
+        .under-construction-deluxe {
+            margin: 6px auto 2px;
+            width: min(360px, 90%);
+            border: 2px dashed #ffe200;
+            background: repeating-linear-gradient(
+                -45deg,
+                #111 0 10px,
+                #111 10px 20px,
+                #f7d602 20px 30px,
+                #f7d602 30px 40px
+            );
+            color: #ff2a00;
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            text-shadow: 1px 1px #000;
+            padding: 7px 10px;
+            animation: ucPulse 0.9s steps(2, end) infinite;
+        }
+
+        @keyframes ucPulse {
+            50% { filter: brightness(1.25) saturate(1.4); }
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .links {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .links li {
+            margin: 6px 0;
+        }
+
+        .links a {
+            color: var(--c-green);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .links a:hover {
+            color: var(--c-red);
+            text-decoration: underline;
+        }
+
+        .lens-flare {
+            position: fixed;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            pointer-events: none;
+            background:
+                radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 230, 120, 0.8) 25%, rgba(255, 100, 0, 0.3) 45%, rgba(255, 100, 0, 0) 72%);
+            box-shadow:
+                0 0 24px rgba(255, 220, 90, 0.7),
+                0 0 58px rgba(255, 130, 0, 0.45);
+            transform: translate(-50%, -50%) scale(0.2);
+            opacity: 0;
+            z-index: 60;
+        }
+
+        .heart-preview {
+            margin: 8px auto;
+            border: 3px dashed var(--c-green);
+            max-width: min(236px, 74vw);
+            width: min(236px, 74vw);
+            aspect-ratio: 1 / 1;
+            background: radial-gradient(circle at 50% 30%, #2a002a 0%, #110015 65%, #07000a 100%);
+            display: block;
+            cursor: pointer;
+        }
+
+        .heart-preview:focus-visible {
+            outline: 3px solid #ffffff;
+            outline-offset: 4px;
+        }
+
+        .heart-slot {
+            margin: 12px auto;
+            border: 3px dashed var(--c-green);
+            width: min(280px, 85vw);
+            background: #130018;
+            color: #ff5454;
+            font-weight: 700;
+            padding: 10px 12px;
+            text-shadow: 1px 1px #540000;
+        }
+
+        .marquee {
+            margin-top: 8px;
+            background: var(--c-yellow);
+            color: #000;
+            padding: 6px 10px;
+            font-weight: 700;
+        }
+
+        .reveal-note {
+            margin-top: 8px;
+            color: #fff;
+            font-family: "Courier New", monospace;
+            font-size: 14px;
+            text-align: center;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%,
+            100% { opacity: 0.55; }
+            50% { opacity: 1; }
+        }
+
+        #scene {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 1500ms ease;
+        }
+
+        #scene.visible {
+            opacity: 1;
+        }
+
+        #dialupOverlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            place-items: center;
+            background: rgba(0, 0, 0, 0.72);
+            z-index: 55;
+        }
+
+        #dialupOverlay.show {
+            display: grid;
+        }
+
+        .dialup-box {
+            width: min(420px, 92vw);
+            border: 3px solid #00ffff;
+            background: #021322;
+            color: #8affff;
+            padding: 14px;
+            font-family: 'Courier New', monospace;
+            box-shadow: 0 0 22px rgba(0, 255, 255, 0.45);
+        }
+
+        .dialup-progress {
+            margin-top: 10px;
+            height: 14px;
+            border: 2px solid #13ff50;
+            background: #001a08;
+            overflow: hidden;
+        }
+
+        .dialup-progress-fill {
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, #00ff8c 0%, #e6ff55 100%);
+            transition: width 180ms linear;
+        }
+
+        #transitionOverlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 54;
+        }
+
+        #transitionOverlay.show {
+            opacity: 1;
+        }
+
+        .star-burst {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 24px;
+            height: 24px;
+            transform: translate(-50%, -50%) scale(0.05);
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 92%, 50% 71%, 21% 92%, 32% 57%, 2% 35%, 39% 35%);
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 245, 141, 0.95) 35%, rgba(255, 80, 0, 0.9) 75%, rgba(255, 80, 0, 0) 100%);
+            filter: drop-shadow(0 0 18px rgba(255, 180, 60, 0.95));
+        }
+
+        .iris-ring {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.8);
+            transform: translate(-50%, -50%) scale(0.08);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.65);
+        }
+
+        #cursorTrailLayer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 53;
+        }
+
+        .trail-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(0, 255, 255, 0.8) 40%, rgba(0, 255, 255, 0) 80%);
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 0.95;
+            will-change: transform, opacity;
+        }
+    </style>
+</head>
+<body>
+    <div id="intro">
+        <canvas id="matrixRain" aria-hidden="true"></canvas>
+        <div>
+            <section id="retro-page" aria-label="Retro HTML a capturar en canvas">
+                <div class="panel">
+                    <h1>Bienvenidos a mi portal web</h1>
+                    <div class="visitor-counter">Usted es el visitante nro: <span id="visitorCount"></span></div>
+                    <p>Última actualización: 12 de Agosto de 1997</p>
+                    <p class="blink">Página en construcción!</p>
+                    <div class="under-construction-deluxe">[!] UNDER CONSTRUCTION [!] &nbsp; obreros pixel trabajando...</div>
+                    <canvas id="heartTrigger" class="heart-preview" role="button" tabindex="0" aria-label="Activar modo cósmico"></canvas>
+                    <p>Aquí algunos de mis experimentos:</p>
+                    <ul id="linksList" class="links"></ul>
+                    <div class="marquee">
+                        <marquee>Bienvenidos a mi web personal. Espero que disfrute la estadía.</marquee>
+                    </div>
+                    <p>Para mejorar su experiencia use Netscape Navigator.</p>
+                </div>
+            </section>
+            <div class="reveal-note">Haz click en el corazón para activar el modo cósmico</div>
+        </div>
+    </div>
+
+    <div id="scene" aria-hidden="true"></div>
+    <div id="dialupOverlay" aria-hidden="true">
+        <div class="dialup-box">
+            <div id="dialupText">Conectando a JapeNet 56k...</div>
+            <div class="dialup-progress" aria-hidden="true">
+                <div id="dialupFill" class="dialup-progress-fill"></div>
+            </div>
+        </div>
+    </div>
+    <div id="transitionOverlay" aria-hidden="true">
+        <div id="starBurst" class="star-burst"></div>
+        <div id="irisRing" class="iris-ring"></div>
+    </div>
+    <div id="cursorTrailLayer" aria-hidden="true"></div>
+    <div id="lensFlare" class="lens-flare" aria-hidden="true"></div>
+
+    <script>
+        window.visitorCountValue = Math.floor(Math.random() * 1000000) + 1000000;
+        const counter = document.getElementById('visitorCount');
+        counter.textContent = window.visitorCountValue.toLocaleString('es-AR');
+    </script>
+
+    <script type="module">
+        import * as THREE from 'https://esm.sh/three@0.166.1';
+        import { EffectComposer } from 'https://esm.sh/three@0.166.1/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'https://esm.sh/three@0.166.1/examples/jsm/postprocessing/RenderPass.js';
+        import { ShaderPass } from 'https://esm.sh/three@0.166.1/examples/jsm/postprocessing/ShaderPass.js';
+        import { FontLoader } from 'https://esm.sh/three@0.166.1/examples/jsm/loaders/FontLoader.js';
+        import { TextGeometry } from 'https://esm.sh/three@0.166.1/examples/jsm/geometries/TextGeometry.js';
+
+        const intro = document.getElementById('intro');
+        const retroPage = document.getElementById('retro-page');
+        const sceneRoot = document.getElementById('scene');
+        const heartTrigger = document.getElementById('heartTrigger');
+        const linksList = document.getElementById('linksList');
+        const visitorCounterEl = document.getElementById('visitorCount');
+        const matrixRain = document.getElementById('matrixRain');
+        const dialupOverlay = document.getElementById('dialupOverlay');
+        const dialupFill = document.getElementById('dialupFill');
+        const dialupText = document.getElementById('dialupText');
+        const transitionOverlay = document.getElementById('transitionOverlay');
+        const starBurst = document.getElementById('starBurst');
+        const irisRing = document.getElementById('irisRing');
+        const cursorTrailLayer = document.getElementById('cursorTrailLayer');
+        const lensFlare = document.getElementById('lensFlare');
+
+        const fallbackLinks = [
+            { text: 'Espacio!', description: 'Experimentos espaciales, visuales y audio', link: './espacio/index.html' },
+            { text: 'Armónicos de Fibonacci', description: 'Patrones sonoros basados en la sucesion de Fibonacci', link: './fibonaccio/index.html' },
+            { text: 'Laboratorio VHS', description: 'Pruebas de imagen retro y glitches analogicos', link: './labs/vhs/index.html' },
+            { text: 'Galeria Pixel', description: 'Coleccion de piezas y pruebas visuales pixeladas', link: './galeria/pixel/index.html' }
+        ];
+
+        function sanitizeLinks(input) {
+            if (!Array.isArray(input)) {
+                return fallbackLinks;
+            }
+
+            const clean = input
+                .filter((item) => item && typeof item.text === 'string' && typeof item.link === 'string')
+                .map((item) => ({
+                    text: item.text.trim(),
+                    description: (typeof item.description === 'string' ? item.description.trim() : ''),
+                    link: item.link.trim()
+                }))
+                .filter((item) => item.text.length > 0 && item.link.length > 0);
+
+            return clean.length > 0 ? clean : fallbackLinks;
+        }
+
+        async function loadLinksData() {
+            try {
+                const url = new URL('./assets/links.json', window.location.href).href;
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('No se pudo cargar links.json');
+                }
+                const data = await response.json();
+                return sanitizeLinks(data);
+            } catch {
+                return fallbackLinks;
+            }
+        }
+
+        function renderLinksInIntro(links) {
+            linksList.innerHTML = '';
+            links.forEach((entry) => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = entry.link;
+                a.textContent = entry.text;
+                li.appendChild(a);
+                linksList.appendChild(li);
+            });
+        }
+
+        const linksData = await loadLinksData();
+        renderLinksInIntro(linksData);
+
+        function initMatrixRain(canvas) {
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                return () => {};
+            }
+
+            const chars = '01$#@%&*+<>[]{};:/\\';
+            let width = 0;
+            let height = 0;
+            let cols = 0;
+            let drops = [];
+            let rafId = 0;
+
+            function resize() {
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = Math.floor(width * dpr);
+                canvas.height = Math.floor(height * dpr);
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                cols = Math.floor(width / 14);
+                drops = new Array(cols).fill(0).map(() => Math.random() * height);
+            }
+
+            function tick() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+                ctx.fillRect(0, 0, width, height);
+                ctx.font = 'bold 14px Courier New';
+
+                for (let i = 0; i < cols; i++) {
+                    const x = i * 14;
+                    const y = drops[i];
+                    const char = chars[Math.floor(Math.random() * chars.length)];
+                    ctx.fillStyle = (Math.random() > 0.9) ? '#c7ff99' : '#00ff55';
+                    ctx.fillText(char, x, y);
+                    drops[i] = y + 14;
+                    if (drops[i] > height && Math.random() > 0.975) {
+                        drops[i] = -20;
+                    }
+                }
+
+                rafId = requestAnimationFrame(tick);
+            }
+
+            resize();
+            tick();
+            window.addEventListener('resize', resize);
+
+            return () => {
+                cancelAnimationFrame(rafId);
+                window.removeEventListener('resize', resize);
+            };
+        }
+
+        function initCursorTrails() {
+            let trailCooldown = 0;
+            function onMove(event) {
+                const now = performance.now();
+                if ((now - trailCooldown) < 20) {
+                    return;
+                }
+                trailCooldown = now;
+
+                const dot = document.createElement('span');
+                dot.className = 'trail-dot';
+                dot.style.left = event.clientX + 'px';
+                dot.style.top = event.clientY + 'px';
+                cursorTrailLayer.appendChild(dot);
+
+                const dx = (Math.random() - 0.5) * 24;
+                const dy = (Math.random() - 0.5) * 24;
+                dot.animate(
+                    [
+                        { transform: 'translate(-50%, -50%) scale(1)', opacity: 0.95 },
+                        { transform: 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px)) scale(0.2)', opacity: 0 }
+                    ],
+                    { duration: 430, easing: 'ease-out', fill: 'forwards' }
+                ).onfinish = () => {
+                    dot.remove();
+                };
+            }
+
+            window.addEventListener('mousemove', onMove);
+            return () => {
+                window.removeEventListener('mousemove', onMove);
+                cursorTrailLayer.replaceChildren();
+            };
+        }
+
+        function initIntroLensFlare() {
+            const introLinks = Array.from(document.querySelectorAll('.links a'));
+            let flareVisible = false;
+
+            function showFlare(event) {
+                flareVisible = true;
+                lensFlare.style.opacity = '1';
+                lensFlare.style.left = event.clientX + 'px';
+                lensFlare.style.top = event.clientY + 'px';
+                lensFlare.style.transform = 'translate(-50%, -50%) scale(1)';
+            }
+
+            function moveFlare(event) {
+                if (!flareVisible) {
+                    return;
+                }
+                lensFlare.style.left = event.clientX + 'px';
+                lensFlare.style.top = event.clientY + 'px';
+            }
+
+            function hideFlare() {
+                flareVisible = false;
+                lensFlare.style.opacity = '0';
+                lensFlare.style.transform = 'translate(-50%, -50%) scale(0.2)';
+            }
+
+            introLinks.forEach((link) => {
+                link.addEventListener('mouseenter', showFlare);
+                link.addEventListener('mousemove', moveFlare);
+                link.addEventListener('mouseleave', hideFlare);
+            });
+
+            return () => {
+                introLinks.forEach((link) => {
+                    link.removeEventListener('mouseenter', showFlare);
+                    link.removeEventListener('mousemove', moveFlare);
+                    link.removeEventListener('mouseleave', hideFlare);
+                });
+            };
+        }
+
+        async function playDialupOverlay() {
+            dialupOverlay.classList.add('show');
+            dialupFill.style.width = '0%';
+            dialupText.textContent = 'Conectando a JapeNet 56k...';
+
+            const steps = [
+                { p: 12, t: 'Marcando... piiip-krrr-shhhh' },
+                { p: 34, t: 'Negociando protocolo PPP...' },
+                { p: 57, t: 'Autenticando usuario invitado...' },
+                { p: 78, t: 'Cargando estrellas y glitches VHS...' },
+                { p: 100, t: 'Conexion establecida.' }
+            ];
+
+            for (const step of steps) {
+                await new Promise((resolve) => setTimeout(resolve, 320 + Math.random() * 240));
+                dialupFill.style.width = step.p + '%';
+                dialupText.textContent = step.t;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 220));
+            dialupOverlay.classList.remove('show');
+        }
+
+        async function playStarIrisTransition() {
+            transitionOverlay.classList.add('show');
+            starBurst.style.transform = 'translate(-50%, -50%) scale(0.05)';
+            irisRing.style.transform = 'translate(-50%, -50%) scale(0.08)';
+            starBurst.style.opacity = '1';
+            irisRing.style.opacity = '1';
+
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            starBurst.style.transition = 'transform 520ms cubic-bezier(0.2, 0.8, 0.15, 1), opacity 520ms ease';
+            irisRing.style.transition = 'transform 620ms cubic-bezier(0.15, 0.85, 0.18, 1), opacity 620ms ease';
+            starBurst.style.transform = 'translate(-50%, -50%) scale(34)';
+            starBurst.style.opacity = '0';
+            irisRing.style.transform = 'translate(-50%, -50%) scale(42)';
+            irisRing.style.opacity = '0';
+
+            await new Promise((resolve) => setTimeout(resolve, 680));
+            transitionOverlay.classList.remove('show');
+            starBurst.style.transition = '';
+            irisRing.style.transition = '';
+        }
+
+        const stopMatrixRain = initMatrixRain(matrixRain);
+        const stopCursorTrails = initCursorTrails();
+        const stopIntroLensFlare = initIntroLensFlare();
+
+        const visitorTickerMs = 2000;
+        let visitorCountValue = Number(window.visitorCountValue);
+        if (!Number.isFinite(visitorCountValue)) {
+            visitorCountValue = Math.floor(Math.random() * 1000000) + 1000000;
+        }
+        window.visitorCountValue = visitorCountValue;
+
+        let activeVisitorTextState = null;
+
+        function formatVisitorText() {
+            return 'Usted es el visitante nro: ' + visitorCountValue.toLocaleString('es-AR');
+        }
+
+        function renderVisitorCounterHtml() {
+            visitorCounterEl.textContent = visitorCountValue.toLocaleString('es-AR');
+        }
+
+        function updateActiveVisitorTextGeometry() {
+            if (!activeVisitorTextState || !activeVisitorTextState.mesh) {
+                return;
+            }
+
+            const geometry = new TextGeometry(formatVisitorText(), {
+                font: activeVisitorTextState.font,
+                size: activeVisitorTextState.size,
+                depth: activeVisitorTextState.depth,
+                curveSegments: 10,
+                bevelEnabled: false
+            });
+            geometry.computeBoundingBox();
+            const bb = geometry.boundingBox;
+            const width = bb ? (bb.max.x - bb.min.x) : 0;
+            geometry.translate(-width / 2, 0, 0);
+
+            const oldGeometry = activeVisitorTextState.mesh.geometry;
+            activeVisitorTextState.mesh.geometry = geometry;
+            oldGeometry.dispose();
+        }
+
+        function tickVisitorCounter() {
+            const roll = Math.random();
+            let increment = 1;
+            if (roll < 0.55) {
+                increment = 1 + Math.floor(Math.random() * 3); // 1..3 (comun)
+            } else if (roll < 0.85) {
+                increment = 4 + Math.floor(Math.random() * 3); // 4..6 (ocasional)
+            } else if (roll < 0.97) {
+                increment = 7 + Math.floor(Math.random() * 2); // 7..8 (raro)
+            } else {
+                increment = 9 + Math.floor(Math.random() * 2); // 9..10 (muy raro)
+            }
+
+            visitorCountValue += increment;
+            window.visitorCountValue = visitorCountValue;
+            renderVisitorCounterHtml();
+            updateActiveVisitorTextGeometry();
+        }
+
+        renderVisitorCounterHtml();
+        setInterval(tickVisitorCounter, visitorTickerMs);
+
+        const useCubemap = true;
+        let revealStarted = false;
+        const cinematic = {
+            durationSec: 12,
+            startZ: 6.3,
+            endZ: 11.2,
+            swayX: 0.28,
+            swayY: 0.12,
+            roll: 0.035
+        };
+
+        const crtShader = {
+            uniforms: {
+                tDiffuse: { value: null },
+                time: { value: 0 },
+                scanlineIntensity: { value: 0.18 },
+                noiseIntensity: { value: 0.045 },
+                curvature: { value: 0.075 },
+                vignetteStrength: { value: 0.36 },
+                trackingDrift: { value: 0.0 },
+                rgbShift: { value: 0.001 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D tDiffuse;
+                uniform float time;
+                uniform float scanlineIntensity;
+                uniform float noiseIntensity;
+                uniform float curvature;
+                uniform float vignetteStrength;
+                uniform float trackingDrift;
+                uniform float rgbShift;
+                varying vec2 vUv;
+
+                float rand(vec2 co) {
+                    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+                }
+
+                void main() {
+                    vec2 uv = vUv;
+                    vec2 centered = (uv - 0.5) * 2.0;
+                    vec2 warped = uv + centered * dot(centered, centered) * curvature * 0.15;
+
+                    float trackingNoise = sin((warped.y * 190.0) + (time * 13.0)) * trackingDrift;
+                    warped.x += trackingNoise;
+
+                    float shift = rgbShift + (trackingDrift * 0.35);
+                    float cr = texture2D(tDiffuse, warped + vec2(shift, 0.0)).r;
+                    float cg = texture2D(tDiffuse, warped).g;
+                    float cb = texture2D(tDiffuse, warped - vec2(shift * 0.8, 0.0)).b;
+                    vec4 color = vec4(cr, cg, cb, 1.0);
+
+                    float scan = sin((warped.y * 1200.0) + (time * 9.0));
+                    color.rgb -= scan * scanlineIntensity * 0.12;
+
+                    float grain = rand(warped + vec2(time * 0.13, time * 0.07)) - 0.5;
+                    color.rgb += grain * noiseIntensity;
+
+                    float vignette = smoothstep(1.0, 0.15, length(centered));
+                    color.rgb *= mix(1.0 - vignetteStrength, 1.0, vignette);
+
+                    gl_FragColor = color;
+                }
+            `
+        };
+
+        function createTextPlane(options) {
+            const {
+                text,
+                width,
+                height,
+                font = 'bold 82px Trebuchet MS',
+                fg = '#ffffff',
+                bg = null,
+                border = null,
+                align = 'center'
+            } = options;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 256;
+            const g = canvas.getContext('2d');
+
+            if (bg) {
+                g.fillStyle = bg;
+                g.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                g.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
+            if (border) {
+                g.strokeStyle = border;
+                g.lineWidth = 18;
+                g.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+            }
+
+            g.fillStyle = fg;
+            g.font = font;
+            g.textAlign = align;
+            g.textBaseline = 'middle';
+            const x = align === 'left' ? 48 : (align === 'right' ? canvas.width - 48 : canvas.width / 2);
+            g.fillText(text, x, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+            const geometry = new THREE.PlaneGeometry(width, height);
+            const mesh = new THREE.Mesh(geometry, material);
+
+            return { mesh, texture, material, geometry };
+        }
+
+        let loadedTextFont = null;
+        async function loadThreeTextFont() {
+            if (loadedTextFont) {
+                return loadedTextFont;
+            }
+
+            const loader = new FontLoader();
+            loadedTextFont = await new Promise((resolve, reject) => {
+                loader.load(
+                    'https://threejs.org/examples/fonts/droid/droid_sans_bold.typeface.json',
+                    resolve,
+                    undefined,
+                    reject
+                );
+            });
+            return loadedTextFont;
+        }
+
+        function createThreeText(options) {
+            const {
+                text,
+                font,
+                size,
+                depth,
+                color,
+                align = 'center',
+                transparent = false,
+                opacity = 1
+            } = options;
+
+            const geometry = new TextGeometry(text, {
+                font,
+                size,
+                depth,
+                curveSegments: 10,
+                bevelEnabled: false
+            });
+            geometry.computeBoundingBox();
+            const bb = geometry.boundingBox;
+            const width = bb ? (bb.max.x - bb.min.x) : 0;
+
+            if (align === 'center') {
+                geometry.translate(-width / 2, 0, 0);
+            } else if (align === 'right') {
+                geometry.translate(-width, 0, 0);
+            }
+
+            const material = new THREE.MeshBasicMaterial({ color, transparent, opacity });
+            const mesh = new THREE.Mesh(geometry, material);
+            return { mesh, geometry, material, width };
+        }
+
+        function createHeartShape() {
+            const heartShape = new THREE.Shape();
+            const samples = 140;
+            const sx = 0.06;
+            const sy = 0.055;
+
+            for (let i = 0; i <= samples; i++) {
+                const t = (i / samples) * Math.PI * 2;
+                const x = 16 * Math.pow(Math.sin(t), 3) * sx;
+                const y = (
+                    13 * Math.cos(t) -
+                    5 * Math.cos(2 * t) -
+                    2 * Math.cos(3 * t) -
+                    Math.cos(4 * t)
+                ) * sy;
+
+                if (i === 0) {
+                    heartShape.moveTo(x, y);
+                } else {
+                    heartShape.lineTo(x, y);
+                }
+            }
+
+            heartShape.closePath();
+            return heartShape;
+        }
+
+        function createSignTexture(label) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 256;
+            const g = canvas.getContext('2d');
+
+            g.fillStyle = '#fff39a';
+            g.fillRect(0, 0, canvas.width, canvas.height);
+
+            g.fillStyle = '#2f0a00';
+            g.lineWidth = 22;
+            g.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
+
+            g.fillStyle = '#8a1a00';
+            g.font = 'bold 72px Trebuchet MS';
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+
+            let text = label || 'Enlace';
+            if (text.length > 26) {
+                text = text.slice(0, 23) + '...';
+            }
+            g.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function createDescriptionTexture(description) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const g = canvas.getContext('2d');
+
+            g.fillStyle = '#17324f';
+            g.fillRect(0, 0, canvas.width, canvas.height);
+
+            g.fillStyle = '#66d0ff';
+            g.lineWidth = 22;
+            g.strokeRect(12, 12, canvas.width - 24, canvas.height - 24);
+
+            g.fillStyle = '#d6f7ff';
+            g.font = 'bold 54px Trebuchet MS';
+            g.textAlign = 'left';
+            g.textBaseline = 'top';
+
+            const raw = (description || 'Sin descripcion disponible').trim();
+            const words = raw.split(/\s+/).filter(Boolean);
+            const lines = [];
+            let current = '';
+            const maxWidth = canvas.width - 120;
+
+            for (const word of words) {
+                const candidate = current ? (current + ' ' + word) : word;
+                if (g.measureText(candidate).width <= maxWidth) {
+                    current = candidate;
+                } else {
+                    if (current) {
+                        lines.push(current);
+                    }
+                    current = word;
+                }
+            }
+            if (current) {
+                lines.push(current);
+            }
+
+            const maxLines = 4;
+            const safeLines = lines.slice(0, maxLines);
+            if (lines.length > maxLines && safeLines.length > 0) {
+                const lastIndex = safeLines.length - 1;
+                let lastLine = safeLines[lastIndex];
+                while (g.measureText(lastLine + '...').width > maxWidth && lastLine.length > 1) {
+                    lastLine = lastLine.slice(0, -1);
+                }
+                safeLines[lastIndex] = lastLine + '...';
+            }
+
+            safeLines.forEach((line, idx) => {
+                g.fillText(line, 60, 60 + (idx * 108));
+            });
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        function createVideoChromaMaterial(videoTexture) {
+            return new THREE.ShaderMaterial({
+                uniforms: {
+                    map: { value: videoTexture },
+                    keyThreshold: { value: 0.045 },
+                    keySoftness: { value: 0.06 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D map;
+                    uniform float keyThreshold;
+                    uniform float keySoftness;
+                    varying vec2 vUv;
+
+                    void main() {
+                        vec4 c = texture2D(map, vUv);
+                        float keyValue = max(c.r, max(c.g, c.b));
+                        float alpha = smoothstep(keyThreshold, keyThreshold + keySoftness, keyValue);
+                        vec3 boosted = c.rgb * (0.8 + alpha * 0.5);
+                        gl_FragColor = vec4(boosted, alpha);
+                    }
+                `,
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+        }
+
+        function initIntroHeartPreview(canvas) {
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            let disposed = false;
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 30);
+            camera.position.set(0, 0.1, 4.1);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+            const key = new THREE.PointLight(0xff6666, 1.7, 16);
+            key.position.set(0.6, 0.7, 2.6);
+            scene.add(key);
+            const rim = new THREE.PointLight(0xffa1a1, 1.2, 14);
+            rim.position.set(-0.9, -0.2, -2.0);
+            scene.add(rim);
+
+            const heartGeo = new THREE.ExtrudeGeometry(createHeartShape(), {
+                depth: 0.32,
+                bevelEnabled: true,
+                bevelSize: 0.065,
+                bevelThickness: 0.08,
+                bevelSegments: 4,
+                curveSegments: 30
+            });
+            const heartMat = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                emissive: new THREE.Color(0x650000),
+                emissiveIntensity: 0.5,
+                roughness: 0.32,
+                metalness: 0.1
+            });
+
+            const heart = new THREE.Mesh(heartGeo, heartMat);
+            heart.scale.set(0.95, 0.95, 0.95);
+            heart.rotation.set(0.2, Math.PI, 0.1);
+            scene.add(heart);
+
+            let promptText = null;
+            let promptTextOutline = null;
+            loadThreeTextFont().then((font) => {
+                if (disposed) {
+                    return;
+                }
+
+                const textMeshData = createThreeText({
+                    text: 'pinchame',
+                    font,
+                    size: 0.24,
+                    depth: 0.06,
+                    color: 0x7aff3d
+                });
+                promptText = textMeshData.mesh;
+                promptText.position.set(0, 0.96, 0.62);
+                scene.add(promptText);
+
+                textMeshData.material.dispose();
+                const neonMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x7aff3d,
+                    emissive: new THREE.Color(0x2cff00),
+                    emissiveIntensity: 1.25,
+                    roughness: 0.28,
+                    metalness: 0.06
+                });
+                promptText.material = neonMaterial;
+
+                const outlineData = createThreeText({
+                    text: 'pinchame',
+                    font,
+                    size: 0.255,
+                    depth: 0.03,
+                    color: 0x00f0ff,
+                    transparent: true,
+                    opacity: 0.92
+                });
+                promptTextOutline = outlineData.mesh;
+                promptTextOutline.position.set(0, 0.95, 0.58);
+                scene.add(promptTextOutline);
+
+                promptText.userData.disposeAssets = [textMeshData.geometry, neonMaterial];
+                promptTextOutline.userData.disposeAssets = [outlineData.geometry, outlineData.material];
+            }).catch(() => {});
+
+            let rafId = 0;
+            const clock = new THREE.Clock();
+
+            function resize() {
+                const rect = canvas.getBoundingClientRect();
+                const w = Math.max(1, Math.round(rect.width));
+                const h = Math.max(1, Math.round(rect.height));
+                renderer.setSize(w, h, false);
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+            }
+
+            function animate() {
+                const t = clock.getElapsedTime();
+                heart.rotation.y = Math.PI + (t * 1.35);
+                heart.rotation.x = 0.2 + (Math.sin(t * 2.2) * 0.13);
+                heart.position.y = Math.sin(t * 2.5) * 0.08;
+                key.intensity = 1.55 + (Math.sin((t * 3.1) + 0.4) * 0.25);
+
+                if (promptText) {
+                    promptText.position.y = 0.96 + (Math.sin(t * 2.2) * 0.055);
+                    promptText.position.x = Math.sin(t * 1.3) * 0.04;
+                    promptText.rotation.z = Math.sin(t * 2.0) * 0.09;
+                    if (promptText.material && promptText.material.emissive) {
+                        promptText.material.emissiveIntensity = 1.0 + (Math.sin((t * 4.2) + 0.8) * 0.45);
+                    }
+                }
+                if (promptTextOutline) {
+                    promptTextOutline.position.y = 0.95 + (Math.sin((t * 2.2) + 0.4) * 0.055);
+                    promptTextOutline.position.x = Math.sin((t * 1.3) + 0.4) * 0.04;
+                    promptTextOutline.rotation.z = Math.sin((t * 2.0) + 0.4) * 0.09;
+                    promptTextOutline.material.opacity = 0.65 + (Math.sin((t * 4.2) + 2.1) * 0.22);
+                }
+
+                renderer.render(scene, camera);
+                rafId = requestAnimationFrame(animate);
+            }
+
+            resize();
+            rafId = requestAnimationFrame(animate);
+            window.addEventListener('resize', resize);
+
+            return () => {
+                disposed = true;
+                cancelAnimationFrame(rafId);
+                window.removeEventListener('resize', resize);
+                if (promptText) {
+                    scene.remove(promptText);
+                    (promptText.userData.disposeAssets || []).forEach((asset) => asset.dispose());
+                }
+                if (promptTextOutline) {
+                    scene.remove(promptTextOutline);
+                    (promptTextOutline.userData.disposeAssets || []).forEach((asset) => asset.dispose());
+                }
+                heartGeo.dispose();
+                heartMat.dispose();
+                renderer.dispose();
+            };
+        }
+
+        let stopIntroHeartPreview = initIntroHeartPreview(heartTrigger);
+
+        async function runReveal() {
+            if (revealStarted) {
+                return;
+            }
+            revealStarted = true;
+
+            await playDialupOverlay();
+            await playStarIrisTransition();
+
+            stopIntroHeartPreview();
+            stopIntroHeartPreview = () => {};
+
+            let disposed = false;
+            let rafId = 0;
+
+            const linkData = linksData.map((entry) => ({
+                text: entry.text,
+                description: entry.description || '',
+                href: new URL(entry.link, window.location.href).href
+            }));
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.domElement.style.width = '100%';
+            renderer.domElement.style.height = '100%';
+            renderer.domElement.style.display = 'block';
+            sceneRoot.appendChild(renderer.domElement);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.35;
+
+            const composer = new EffectComposer(renderer);
+
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x0a1230, 18, 80);
+
+            const plasmaUniforms = {
+                time: { value: 0 }
+            };
+
+            const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 220);
+            camera.position.set(0, 0.15, cinematic.startZ);
+
+            const renderPass = new RenderPass(scene, camera);
+            composer.addPass(renderPass);
+            const crtPass = new ShaderPass(crtShader);
+            composer.addPass(crtPass);
+
+            const cubePath = './assets/cubemap/stars/';
+            const cubeFiles = ['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg'];
+            const loader = new THREE.CubeTextureLoader();
+
+            let skyLoaded = false;
+            if (useCubemap) {
+                try {
+                    const cube = await new Promise((resolve, reject) => {
+                        loader.setPath(cubePath).load(cubeFiles, resolve, undefined, reject);
+                    });
+                    scene.background = cube;
+                    skyLoaded = true;
+                } catch {
+                    scene.background = new THREE.Color(0x0a1230);
+                }
+            } else {
+                scene.background = new THREE.Color(0x0a1230);
+            }
+
+            if (!skyLoaded) {
+                const starsGeom = new THREE.BufferGeometry();
+                const starsCount = 4000;
+                const coords = new Float32Array(starsCount * 3);
+                for (let i = 0; i < starsCount; i++) {
+                    const r = 70 + Math.random() * 90;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos((Math.random() * 2) - 1);
+                    coords[i * 3 + 0] = r * Math.sin(phi) * Math.cos(theta);
+                    coords[i * 3 + 1] = r * Math.cos(phi);
+                    coords[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+                }
+                starsGeom.setAttribute('position', new THREE.BufferAttribute(coords, 3));
+                const stars = new THREE.Points(
+                    starsGeom,
+                    new THREE.PointsMaterial({ color: 0xffffff, size: 0.24, sizeAttenuation: true })
+                );
+                scene.add(stars);
+            }
+
+            scene.add(new THREE.AmbientLight(0xece8ff, 1.0));
+            const key = new THREE.DirectionalLight(0xffffff, 1.25);
+            key.position.set(2.8, 2.2, 3.6);
+            scene.add(key);
+            const rim = new THREE.DirectionalLight(0x7cc1ff, 0.95);
+            rim.position.set(-3.2, -0.5, -2.5);
+            scene.add(rim);
+
+            const panelAssets = [];
+            const retroGroup = new THREE.Group();
+            retroGroup.position.set(0, 0.45, 0.1);
+            scene.add(retroGroup);
+            const textFont = await loadThreeTextFont();
+
+            const borderPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(7.6, 5.35),
+                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+            );
+            borderPlane.position.z = -0.18;
+            retroGroup.add(borderPlane);
+            panelAssets.push(borderPlane.geometry, borderPlane.material);
+
+            const cyanPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(7.2, 5.0),
+                new THREE.MeshBasicMaterial({ color: 0x00ffff })
+            );
+            cyanPlane.position.z = -0.16;
+            retroGroup.add(cyanPlane);
+            panelAssets.push(cyanPlane.geometry, cyanPlane.material);
+
+            const blackPanel = new THREE.Mesh(
+                new THREE.PlaneGeometry(6.45, 4.25),
+                new THREE.MeshBasicMaterial({ color: 0x000000 })
+            );
+            blackPanel.position.z = -0.14;
+            retroGroup.add(blackPanel);
+            panelAssets.push(blackPanel.geometry, blackPanel.material);
+
+            const title = createThreeText({
+                text: 'Bienvenidos a mi portal web',
+                font: textFont,
+                size: 0.32,
+                depth: 0.02,
+                color: 0xff00ff
+            });
+            title.mesh.position.set(0, 1.62, -0.11);
+            retroGroup.add(title.mesh);
+            panelAssets.push(title.geometry, title.material);
+
+            const visitorBox = new THREE.Mesh(
+                new THREE.PlaneGeometry(4.55, 0.45),
+                new THREE.MeshBasicMaterial({ color: 0x001a00 })
+            );
+            visitorBox.position.set(0, 1.16, -0.125);
+            retroGroup.add(visitorBox);
+            panelAssets.push(visitorBox.geometry, visitorBox.material);
+
+            const visitorBorder = new THREE.Mesh(
+                new THREE.PlaneGeometry(4.65, 0.55),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            );
+            visitorBorder.position.set(0, 1.16, -0.13);
+            retroGroup.add(visitorBorder);
+            panelAssets.push(visitorBorder.geometry, visitorBorder.material);
+
+            const visitor = createThreeText({
+                text: formatVisitorText(),
+                font: textFont,
+                size: 0.16,
+                depth: 0.015,
+                color: 0x00ff00
+            });
+            visitor.mesh.position.set(0, 1.10, -0.11);
+            retroGroup.add(visitor.mesh);
+            panelAssets.push(visitor.material);
+            activeVisitorTextState = {
+                mesh: visitor.mesh,
+                font: textFont,
+                size: 0.16,
+                depth: 0.015
+            };
+
+            const updated = createThreeText({
+                text: 'Última actualización: 12 de Agosto de 1997',
+                font: textFont,
+                size: 0.145,
+                depth: 0.015,
+                color: 0xff88ff
+            });
+            updated.mesh.position.set(0, 0.72, -0.11);
+            retroGroup.add(updated.mesh);
+            panelAssets.push(updated.geometry, updated.material);
+
+            const underConstruction = createThreeText({
+                text: 'Página en construcción!',
+                font: textFont,
+                size: 0.17,
+                depth: 0.015,
+                color: 0xffff00,
+                transparent: true,
+                opacity: 1
+            });
+            underConstruction.mesh.position.set(0, 0.36, -0.11);
+            retroGroup.add(underConstruction.mesh);
+            panelAssets.push(underConstruction.geometry, underConstruction.material);
+
+            const expTitle = createThreeText({
+                text: 'Aquí algunos de mis experimentos:',
+                font: textFont,
+                size: 0.125,
+                depth: 0.012,
+                color: 0xffffff
+            });
+            expTitle.mesh.position.set(0, -0.62, -0.11);
+            retroGroup.add(expTitle.mesh);
+            panelAssets.push(expTitle.geometry, expTitle.material);
+
+            const marqueeBar = new THREE.Mesh(
+                new THREE.PlaneGeometry(5.55, 0.38),
+                new THREE.MeshBasicMaterial({ color: 0xffff00 })
+            );
+            marqueeBar.position.set(0, -1.77, -0.13);
+            retroGroup.add(marqueeBar);
+            panelAssets.push(marqueeBar.geometry, marqueeBar.material);
+
+            const marqueeText = createThreeText({
+                text: 'Bienvenidos a mi web personal. Espero que disfrute la estadía.  ~  ',
+                font: textFont,
+                size: 0.09,
+                depth: 0.01,
+                color: 0x000000,
+                align: 'left'
+            });
+            marqueeText.mesh.position.set(2.75, -1.85, -0.11);
+            retroGroup.add(marqueeText.mesh);
+            panelAssets.push(marqueeText.geometry, marqueeText.material);
+
+            const navHint = createThreeText({
+                text: 'Para mejorar su experiencia use Netscape Navigator.',
+                font: textFont,
+                size: 0.085,
+                depth: 0.01,
+                color: 0xffffff
+            });
+            navHint.mesh.position.set(0, -2.23, -0.11);
+            retroGroup.add(navHint.mesh);
+            panelAssets.push(navHint.geometry, navHint.material);
+
+            const heartGeo = new THREE.ExtrudeGeometry(createHeartShape(), {
+                depth: 0.28,
+                bevelEnabled: true,
+                bevelSize: 0.06,
+                bevelThickness: 0.07,
+                bevelSegments: 3,
+                curveSegments: 24
+            });
+
+            const heartMat = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                emissive: new THREE.Color(0x5a0000),
+                emissiveIntensity: 0.42,
+                roughness: 0.38,
+                metalness: 0.08
+            });
+
+            const heartMesh = new THREE.Mesh(heartGeo, heartMat);
+            heartMesh.scale.set(0.5, 0.5, 0.5);
+            heartMesh.position.set(0, 0.02, 0.15);
+            heartMesh.rotation.set(0.22, Math.PI, 0.08);
+            retroGroup.add(heartMesh);
+
+            const heartLight = new THREE.PointLight(0xff3b3b, 1.4, 7.5);
+            heartLight.position.set(0, -0.82, 1.65);
+            scene.add(heartLight);
+
+            const plasmaPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(20, 12, 1, 1),
+                new THREE.ShaderMaterial({
+                    uniforms: plasmaUniforms,
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying vec2 vUv;
+                        uniform float time;
+
+                        void main() {
+                            vec2 p = (vUv - 0.5) * 3.2;
+                            float v = 0.0;
+                            v += sin((p.x + time * 0.8) * 3.1);
+                            v += sin((p.y - time * 0.6) * 4.3);
+                            v += sin((p.x + p.y + time * 0.5) * 2.7);
+                            v += sin(sqrt((p.x * p.x) + (p.y * p.y) + 1.0) * 4.0 - (time * 2.0));
+                            v *= 0.25;
+
+                            vec3 c1 = vec3(0.10, 0.04, 0.22);
+                            vec3 c2 = vec3(0.02, 0.45, 0.55);
+                            vec3 c3 = vec3(0.72, 0.12, 0.15);
+                            vec3 col = mix(c1, c2, smoothstep(-0.6, 0.2, v));
+                            col = mix(col, c3, smoothstep(0.1, 0.8, v));
+
+                            gl_FragColor = vec4(col, 0.26);
+                        }
+                    `,
+                    transparent: true,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.DoubleSide
+                })
+            );
+            plasmaPlane.position.set(0, -0.25, -4.2);
+            scene.add(plasmaPlane);
+
+            let babyVideo = null;
+            let babyVideoMirror = null;
+            let babyVideoTexture = null;
+            let babyVideoTextureMirror = null;
+            let babyMaterial = null;
+            let babyMaterialMirror = null;
+            let babyBillboard = null;
+            let babyBillboardMirror = null;
+            let babyRim = null;
+            let babyRimMirror = null;
+
+            try {
+                babyVideo = document.createElement('video');
+                babyVideo.src = new URL('./assets/video/dancing-baby.mp4', window.location.href).href;
+                babyVideo.muted = true;
+                babyVideo.loop = true;
+                babyVideo.playsInline = true;
+                babyVideo.preload = 'auto';
+                babyVideo.autoplay = true;
+                babyVideo.playbackRate = 1.0;
+                babyVideo.load();
+
+                babyVideoTexture = new THREE.VideoTexture(babyVideo);
+                babyVideoTexture.colorSpace = THREE.SRGBColorSpace;
+                babyVideoTexture.minFilter = THREE.LinearFilter;
+                babyVideoTexture.magFilter = THREE.LinearFilter;
+
+                babyMaterial = createVideoChromaMaterial(babyVideoTexture);
+                const babyGeo = new THREE.PlaneGeometry(1.25, 1.25);
+                babyBillboard = new THREE.Mesh(babyGeo, babyMaterial);
+                babyBillboard.position.set(1.9, 0.72, 1.15);
+                babyBillboard.rotation.y = -0.22;
+                babyBillboard.userData.baseX = babyBillboard.position.x;
+                babyBillboard.userData.baseY = babyBillboard.position.y;
+                babyBillboard.userData.baseZ = babyBillboard.position.z;
+                scene.add(babyBillboard);
+
+                babyVideoMirror = document.createElement('video');
+                babyVideoMirror.src = new URL('./assets/video/dancing-baby.mp4', window.location.href).href;
+                babyVideoMirror.muted = true;
+                babyVideoMirror.loop = true;
+                babyVideoMirror.playsInline = true;
+                babyVideoMirror.preload = 'auto';
+                babyVideoMirror.autoplay = true;
+                babyVideoMirror.playbackRate = 0.75;
+                babyVideoMirror.load();
+
+                babyVideoTextureMirror = new THREE.VideoTexture(babyVideoMirror);
+                babyVideoTextureMirror.colorSpace = THREE.SRGBColorSpace;
+                babyVideoTextureMirror.minFilter = THREE.LinearFilter;
+                babyVideoTextureMirror.magFilter = THREE.LinearFilter;
+                babyMaterialMirror = createVideoChromaMaterial(babyVideoTextureMirror);
+
+                babyBillboardMirror = new THREE.Mesh(babyGeo, babyMaterialMirror);
+                babyBillboardMirror.position.set(-1.9, 0.72, 1.15);
+                babyBillboardMirror.rotation.y = 0.22;
+                babyBillboardMirror.userData.baseX = babyBillboardMirror.position.x;
+                babyBillboardMirror.userData.baseY = babyBillboardMirror.position.y;
+                babyBillboardMirror.userData.baseZ = babyBillboardMirror.position.z;
+                scene.add(babyBillboardMirror);
+
+                babyRim = new THREE.PointLight(0x55c8ff, 1.3, 20);
+                babyRim.position.set(1.95, 0.78, 1.65);
+                scene.add(babyRim);
+
+                babyRimMirror = new THREE.PointLight(0x55c8ff, 1.3, 20);
+                babyRimMirror.position.set(-1.95, 0.78, 1.65);
+                scene.add(babyRimMirror);
+
+                await babyVideo.play().catch(() => {});
+                await babyVideoMirror.play().catch(() => {});
+            } catch {
+                babyVideo = null;
+            }
+
+            const signMeshes = [];
+            const signAssets = [];
+            const signCount = Math.max(linkData.length, 1);
+            const signColumns = signCount <= 2 ? signCount : 2;
+            const signRows = Math.ceil(signCount / signColumns);
+            const signColSpacing = 2.28;
+            const signRowSpacing = 0.72;
+            for (let i = 0; i < signCount; i++) {
+                const item = linkData[i] || { text: 'Inicio', href: window.location.href };
+                const signTexture = createSignTexture(item.text);
+                const signMat = new THREE.MeshStandardMaterial({
+                    map: signTexture,
+                    roughness: 0.72,
+                    metalness: 0.02,
+                    emissive: new THREE.Color(0x2a1500),
+                    emissiveIntensity: 0.2
+                });
+                const signGeo = new THREE.PlaneGeometry(2.25, 0.56);
+                const signMesh = new THREE.Mesh(signGeo, signMat);
+                const glowGeo = new THREE.PlaneGeometry(2.85, 0.95);
+                const glowMat = new THREE.MeshBasicMaterial({
+                    color: 0x55e6ff,
+                    transparent: true,
+                    opacity: 0.08,
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+
+                const descriptionTexture = createDescriptionTexture(item.description);
+                const descriptionMat = new THREE.MeshStandardMaterial({
+                    map: descriptionTexture,
+                    roughness: 0.76,
+                    metalness: 0.01,
+                    emissive: new THREE.Color(0x03111f),
+                    emissiveIntensity: 0.38,
+                    transparent: true,
+                    opacity: 0,
+                    depthTest: false,
+                    depthWrite: false
+                });
+                const descriptionGeo = new THREE.PlaneGeometry(2.95, 1.35);
+                const descriptionMesh = new THREE.Mesh(descriptionGeo, descriptionMat);
+                const row = Math.floor(i / signColumns);
+                const col = i % signColumns;
+                const rowItemCount = Math.min(signColumns, signCount - (row * signColumns));
+                const x = (col - ((rowItemCount - 1) / 2)) * signColSpacing;
+                const y = -1.55 - (row * signRowSpacing);
+                const z = 0.45 - (Math.abs(x) * 0.12) - (row * 0.05);
+                signMesh.position.set(x, y, z);
+                signMesh.rotation.x = -0.18;
+                glowMesh.position.copy(signMesh.position);
+                glowMesh.position.z -= 0.04;
+                glowMesh.rotation.copy(signMesh.rotation);
+                descriptionMesh.position.set(x, y + 1.0, z + 1.05);
+                descriptionMesh.rotation.x = -0.06;
+                descriptionMesh.scale.set(0.8, 0.8, 1);
+                descriptionMesh.visible = false;
+                descriptionMesh.renderOrder = 120;
+                signMesh.userData = {
+                    linkHref: item.href,
+                    baseX: signMesh.position.x,
+                    baseY: signMesh.position.y,
+                    baseZ: signMesh.position.z,
+                    phase: i * 1.6,
+                    descriptionMesh,
+                    glowMesh,
+                    baseScale: 1.0
+                };
+                retroGroup.add(signMesh);
+                retroGroup.add(glowMesh);
+                retroGroup.add(descriptionMesh);
+                signMeshes.push(signMesh);
+                signAssets.push({
+                    geo: signGeo,
+                    mat: signMat,
+                    tex: signTexture,
+                    glowGeo,
+                    glowMat,
+                    descriptionGeo,
+                    descriptionMat,
+                    descriptionTexture
+                });
+            }
+
+            const raycaster = new THREE.Raycaster();
+            const pointer = new THREE.Vector2();
+            let hoveredSign = null;
+            let audioCtx = null;
+            let lastHoverSoundAt = 0;
+
+            function ensureAudioContext() {
+                if (!audioCtx) {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (Ctx) {
+                        audioCtx = new Ctx();
+                    }
+                }
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume().catch(() => {});
+                }
+            }
+
+            function playHoverSound() {
+                if (!audioCtx) {
+                    return;
+                }
+
+                const now = performance.now();
+                if ((now - lastHoverSoundAt) < 90) {
+                    return;
+                }
+                lastHoverSoundAt = now;
+
+                const t0 = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(660, t0);
+                osc.frequency.exponentialRampToValueAtTime(520, t0 + 0.08);
+
+                gain.gain.setValueAtTime(0.0001, t0);
+                gain.gain.exponentialRampToValueAtTime(0.032, t0 + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(t0);
+                osc.stop(t0 + 0.12);
+            }
+
+            function updatePointerFromEvent(event) {
+                const rect = renderer.domElement.getBoundingClientRect();
+                pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                pointer.y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+            }
+
+            function pickSignFromPointer() {
+                raycaster.setFromCamera(pointer, camera);
+                const hits = raycaster.intersectObjects(signMeshes, true);
+                if (hits.length > 0) {
+                    return hits[0].object;
+                }
+                return null;
+            }
+
+            function resetToIntro() {
+                if (disposed) {
+                    return;
+                }
+                disposed = true;
+
+                cancelAnimationFrame(rafId);
+                renderer.domElement.removeEventListener('click', onSceneClick);
+                renderer.domElement.removeEventListener('pointermove', onScenePointerMove);
+                renderer.domElement.removeEventListener('pointerleave', onScenePointerLeave);
+                window.removeEventListener('resize', onResize);
+
+                heartGeo.dispose();
+                heartMat.dispose();
+                panelAssets.forEach((asset) => {
+                    asset.dispose();
+                });
+                plasmaPlane.geometry.dispose();
+                plasmaPlane.material.dispose();
+                signAssets.forEach((asset) => {
+                    asset.geo.dispose();
+                    asset.mat.dispose();
+                    asset.tex.dispose();
+                    asset.glowGeo.dispose();
+                    asset.glowMat.dispose();
+                    asset.descriptionGeo.dispose();
+                    asset.descriptionMat.dispose();
+                    asset.descriptionTexture.dispose();
+                });
+
+                if (babyBillboard) {
+                    babyBillboard.geometry.dispose();
+                }
+                if (babyMaterial) {
+                    babyMaterial.dispose();
+                }
+                if (babyMaterialMirror) {
+                    babyMaterialMirror.dispose();
+                }
+                if (babyVideoTexture) {
+                    babyVideoTexture.dispose();
+                }
+                if (babyVideoTextureMirror) {
+                    babyVideoTextureMirror.dispose();
+                }
+                if (babyVideo) {
+                    babyVideo.pause();
+                    babyVideo.removeAttribute('src');
+                    babyVideo.load();
+                }
+                if (babyVideoMirror) {
+                    babyVideoMirror.pause();
+                    babyVideoMirror.removeAttribute('src');
+                    babyVideoMirror.load();
+                }
+
+                if (babyRim) {
+                    scene.remove(babyRim);
+                }
+                if (babyRimMirror) {
+                    scene.remove(babyRimMirror);
+                }
+
+                if (activeVisitorTextState) {
+                    activeVisitorTextState.mesh.geometry.dispose();
+                    activeVisitorTextState = null;
+                }
+
+                renderer.dispose();
+                sceneRoot.replaceChildren();
+                sceneRoot.classList.remove('visible');
+                intro.classList.remove('fade');
+                stopIntroHeartPreview = initIntroHeartPreview(heartTrigger);
+
+                revealStarted = false;
+            }
+
+            function onScenePointerMove(event) {
+                if (disposed) {
+                    return;
+                }
+
+                updatePointerFromEvent(event);
+                const prevHovered = hoveredSign;
+                hoveredSign = pickSignFromPointer();
+                if (hoveredSign && hoveredSign !== prevHovered) {
+                    playHoverSound();
+                }
+                renderer.domElement.style.cursor = hoveredSign ? 'pointer' : 'default';
+            }
+
+            function onScenePointerLeave() {
+                hoveredSign = null;
+                renderer.domElement.style.cursor = 'default';
+            }
+
+            function onSceneClick(event) {
+                if (disposed) {
+                    return;
+                }
+
+                updatePointerFromEvent(event);
+
+                raycaster.setFromCamera(pointer, camera);
+                const pickables = [heartMesh, ...signMeshes];
+                const hits = raycaster.intersectObjects(pickables, true);
+                if (hits.length > 0) {
+                    const hitObj = hits[0].object;
+                    if (hitObj === heartMesh) {
+                        resetToIntro();
+                        return;
+                    }
+
+                    if (hitObj.userData?.linkHref) {
+                        window.location.href = hitObj.userData.linkHref;
+                    }
+                }
+            }
+
+            const clock = new THREE.Clock();
+
+            function animate() {
+                if (disposed) {
+                    return;
+                }
+
+                const t = clock.getElapsedTime();
+                plasmaUniforms.time.value = t;
+
+                const driftBase = (Math.sin(t * 0.62) * 0.5) + 0.5;
+                const driftPop = Math.random() > 0.996 ? 0.7 : 0.0;
+                const glitchBurst = driftBase + driftPop;
+                crtPass.uniforms.trackingDrift.value = glitchBurst * 0.00085;
+
+                const progress = Math.min(t / cinematic.durationSec, 1);
+                const eased = 1 - Math.pow(1 - progress, 2.2);
+
+                camera.position.z = THREE.MathUtils.lerp(cinematic.startZ, cinematic.endZ, eased);
+                camera.position.x = Math.sin(t * 0.24) * cinematic.swayX * (0.35 + (eased * 0.65));
+                camera.position.y = 0.2 + (Math.sin(t * 0.42) * cinematic.swayY);
+                camera.lookAt(0, 0.2, 0);
+                camera.rotation.z = Math.sin((t * 0.33) + 0.4) * cinematic.roll * (0.4 + (eased * 0.6));
+
+                retroGroup.rotation.y = Math.sin(t * 0.18) * 0.09;
+                retroGroup.position.x = Math.sin(t * 0.26) * 0.16;
+                underConstruction.mesh.material.opacity = (Math.sin(t * 4.0) > 0) ? 1 : 0.32;
+                marqueeText.mesh.position.x = 2.75 - ((t * 1.5) % 8.8);
+
+                heartMesh.rotation.y = Math.PI + (t * 1.18);
+                heartMesh.rotation.x = 0.22 + (Math.sin(t * 1.7) * 0.16);
+                heartMesh.position.y = 0.02 + (Math.sin(t * 2.0) * 0.08);
+                heartLight.intensity = 1.2 + (Math.sin((t * 2.0) + 0.5) * 0.22);
+
+                if (babyBillboard) {
+                    babyBillboard.position.x = babyBillboard.userData.baseX + (Math.sin(t * 0.52) * 0.24);
+                    babyBillboard.position.y = babyBillboard.userData.baseY + (Math.cos(t * 0.88) * 0.12);
+                    babyBillboard.position.z = babyBillboard.userData.baseZ + (Math.sin(t * 0.44) * 0.16);
+                    babyBillboard.rotation.y = -0.22 + (Math.sin(t * 0.41) * 0.09);
+                    babyBillboard.rotation.x = -0.03 + (Math.sin(t * 0.33) * 0.03);
+                }
+                if (babyBillboardMirror) {
+                    babyBillboardMirror.position.x = babyBillboardMirror.userData.baseX - (Math.sin(t * 0.52) * 0.24);
+                    babyBillboardMirror.position.y = babyBillboardMirror.userData.baseY + (Math.cos((t * 0.88) + 0.6) * 0.12);
+                    babyBillboardMirror.position.z = babyBillboardMirror.userData.baseZ + (Math.sin((t * 0.44) + 0.5) * 0.16);
+                    babyBillboardMirror.rotation.y = 0.22 - (Math.sin(t * 0.41) * 0.09);
+                    babyBillboardMirror.rotation.x = -0.03 + (Math.sin((t * 0.33) + 0.4) * 0.03);
+                }
+                if (babyRim) {
+                    babyRim.intensity = 1.0 + (Math.sin((t * 1.8) + 1.1) * 0.18);
+                    babyRim.position.x = (babyBillboard ? babyBillboard.position.x : 0) + 0.2;
+                    babyRim.position.y = (babyBillboard ? babyBillboard.position.y : 1.2) + 0.1;
+                }
+                if (babyRimMirror) {
+                    babyRimMirror.intensity = 1.0 + (Math.sin((t * 1.8) + 1.6) * 0.18);
+                    babyRimMirror.position.x = (babyBillboardMirror ? babyBillboardMirror.position.x : 0) - 0.2;
+                    babyRimMirror.position.y = (babyBillboardMirror ? babyBillboardMirror.position.y : 1.2) + 0.1;
+                }
+
+                signMeshes.forEach((sign, idx) => {
+                    sign.position.y = sign.userData.baseY + (Math.sin((t * 1.25) + sign.userData.phase) * 0.06);
+                    sign.position.z = sign.userData.baseZ + (Math.sin((t * 0.66) + sign.userData.phase) * 0.05);
+                    sign.rotation.y = Math.sin((t * 0.52) + idx) * 0.1;
+
+                    const isHovered = hoveredSign === sign;
+                    const targetScale = isHovered ? 1.14 : 1.0;
+                    sign.scale.x = THREE.MathUtils.lerp(sign.scale.x, targetScale, 0.18);
+                    sign.scale.y = THREE.MathUtils.lerp(sign.scale.y, targetScale, 0.18);
+                    const targetEmissive = isHovered ? 0.6 : 0.2;
+                    sign.material.emissiveIntensity = THREE.MathUtils.lerp(sign.material.emissiveIntensity, targetEmissive, 0.18);
+
+                    const glowMesh = sign.userData.glowMesh;
+                    if (glowMesh) {
+                        glowMesh.position.x = sign.position.x;
+                        glowMesh.position.y = sign.position.y;
+                        glowMesh.position.z = sign.position.z - 0.04;
+                        glowMesh.rotation.x = sign.rotation.x;
+                        glowMesh.rotation.y = sign.rotation.y;
+
+                        const targetGlowOpacity = isHovered ? 0.34 : 0.08;
+                        glowMesh.material.opacity = THREE.MathUtils.lerp(glowMesh.material.opacity, targetGlowOpacity, 0.2);
+
+                        const glowScale = THREE.MathUtils.lerp(glowMesh.scale.x, isHovered ? 1.15 : 1.0, 0.2);
+                        glowMesh.scale.set(glowScale, glowScale, 1);
+                    }
+
+                    const descriptionMesh = sign.userData.descriptionMesh;
+                    if (descriptionMesh) {
+                        descriptionMesh.position.x = sign.position.x;
+                        descriptionMesh.position.y = sign.position.y + 1.0 + (Math.sin((t * 1.8) + sign.userData.phase) * 0.03);
+                        descriptionMesh.position.z = sign.position.z + 1.05;
+                        descriptionMesh.rotation.y = sign.rotation.y * 0.25;
+
+                        const targetOpacity = isHovered ? 0.96 : 0;
+                        descriptionMesh.material.opacity = THREE.MathUtils.lerp(descriptionMesh.material.opacity, targetOpacity, 0.22);
+
+                        const targetScale = isHovered ? 1.0 : 0.8;
+                        const currentScale = THREE.MathUtils.lerp(descriptionMesh.scale.x, targetScale, 0.2);
+                        descriptionMesh.scale.set(currentScale, currentScale, 1);
+
+                        descriptionMesh.visible = descriptionMesh.material.opacity > 0.02;
+                    }
+                });
+
+                crtPass.uniforms.time.value = t;
+                composer.render();
+                rafId = requestAnimationFrame(animate);
+            }
+
+            rafId = requestAnimationFrame(animate);
+
+            intro.classList.add('fade');
+            sceneRoot.classList.add('visible');
+
+            function onResize() {
+                if (disposed) {
+                    return;
+                }
+
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                composer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            window.addEventListener('resize', onResize);
+            renderer.domElement.addEventListener('click', onSceneClick);
+            renderer.domElement.addEventListener('pointermove', onScenePointerMove);
+            renderer.domElement.addEventListener('pointerleave', onScenePointerLeave);
+            ensureAudioContext();
+        }
+
+        heartTrigger.addEventListener('click', runReveal);
+        heartTrigger.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                runReveal();
+            }
+        });
+
+        window.addEventListener('beforeunload', () => {
+            stopMatrixRain();
+            stopCursorTrails();
+            stopIntroLensFlare();
+        });
+    </script>
+</body>
+</html>
