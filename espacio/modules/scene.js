@@ -273,6 +273,8 @@ function sceneInit() {
     let fpsVisible = false;
     const SHOW_PROBE_PATH = false;
     const probeTargets = [];
+    const cameraTourTargets = [];
+    const cameraTourOrder = [];
     const probeTrails = [];
     const probePathPoints = [
         new THREE.Vector3(),
@@ -305,7 +307,69 @@ function sceneInit() {
     };
     const cameraView = {
         topDown: false,
-        topHeight: 2700
+        topHeight: 2700,
+        planetTour: false
+    };
+    const cameraModeSwitch = {
+        enabled: true,
+        minSwitchMs: 30000,
+        maxSwitchMs: 90000,
+        nextSwitchAt: 0,
+        transitionMs: 2600,
+        active: false,
+        startedAt: 0,
+        startPos: new THREE.Vector3(),
+        startQuat: new THREE.Quaternion(),
+        targetQuat: new THREE.Quaternion(),
+        blendPos: new THREE.Vector3()
+    };
+    const cameraTour = {
+        index: 0,
+        phase: 'approach',
+        phaseStartedAt: 0,
+        approachMs: 6800,
+        orbitMs: 18000,
+        transferMs: 7200,
+        turnsPerPlanet: 1.05,
+        minDistance: 100,
+        maxDistance: 275,
+        distancePadding: 112,
+        baseHeight: 34,
+        angle: 0,
+        approachAngularSpeed: 0.17,
+        transferAngularSpeed: 0.12,
+        transferFromIndex: 0,
+        transferToIndex: 0,
+        transferArrivalScale: 1.03,
+        transferLookDelay: 0.24,
+        transferVerticalDelay: 0.32,
+        positionDamping: 2.6,
+        lookDamping: 1.9,
+        rotationDamping: 1.6,
+        verticalPosDamping: 1.45,
+        verticalLookDamping: 1.2,
+        minPitchDeg: -9,
+        maxPitchDeg: 14,
+        initialized: false
+    };
+    const cameraTourWork = {
+        targetPos: new THREE.Vector3(),
+        fromTargetPos: new THREE.Vector3(),
+        toTargetPos: new THREE.Vector3(),
+        desiredPos: new THREE.Vector3(),
+        fromDesiredPos: new THREE.Vector3(),
+        toDesiredPos: new THREE.Vector3(),
+        desiredLook: new THREE.Vector3(),
+        offset: new THREE.Vector3(),
+        fromOffset: new THREE.Vector3(),
+        toOffset: new THREE.Vector3(),
+        smoothedLook: new THREE.Vector3(),
+        smoothedPosY: 0,
+        smoothedLookY: 0,
+        virtualPos: new THREE.Vector3(),
+        lookMatrix: new THREE.Matrix4(),
+        desiredQuat: new THREE.Quaternion(),
+        virtualQuat: new THREE.Quaternion()
     };
     const marsTrails = [];
     const marsTrailWork = {
@@ -606,6 +670,8 @@ function sceneInit() {
         });
 
         probeTargets.push(mercury, venus, earth, mars, jupiter, saturn, uranus, neptune);
+        // Keep the probe route intact, but avoid inner planets for camera flyby.
+        cameraTourTargets.push(earth, mars, jupiter, saturn, uranus, neptune);
 
         for (let i = 0; i < probeTargets.length; i++) {
             probeTargets[i].getWorldPosition(probePathPoints[i]);
@@ -718,6 +784,44 @@ function sceneInit() {
         // Event listeners
         window.addEventListener('resize', onWindowResize, false);
         window.addEventListener('keydown', onKeyDown, false);
+
+        scheduleNextModeSwitch(performance.now());
+    }
+
+    function getRandomModeSwitchDelayMs() {
+        return cameraModeSwitch.minSwitchMs + Math.random() * (cameraModeSwitch.maxSwitchMs - cameraModeSwitch.minSwitchMs);
+    }
+
+    function scheduleNextModeSwitch(nowMs) {
+        const now = nowMs || performance.now();
+        cameraModeSwitch.nextSwitchAt = now + getRandomModeSwitchDelayMs();
+    }
+
+    function switchOrbitModeSmooth(enableSonda, nowMs) {
+        const now = nowMs || performance.now();
+
+        if (cameraView.topDown) {
+            cameraView.topDown = false;
+        }
+
+        if (cameraView.planetTour === enableSonda) {
+            scheduleNextModeSwitch(now);
+            return;
+        }
+
+        cameraModeSwitch.active = true;
+        cameraModeSwitch.startedAt = now;
+        cameraModeSwitch.startPos.copy(camera.position);
+        cameraModeSwitch.startQuat.copy(camera.quaternion);
+
+        if (enableSonda) {
+            startPlanetTour(now);
+            cameraView.planetTour = true;
+        } else {
+            cameraView.planetTour = false;
+        }
+
+        scheduleNextModeSwitch(now);
     }
 
     function onKeyDown(event) {
@@ -725,15 +829,27 @@ function sceneInit() {
             return;
         }
 
-        if (event.key.toLowerCase() === 'f') {
+        const key = event.key.toLowerCase();
+
+        if (key === 'f') {
             fpsVisible = !fpsVisible;
             if (fpsHud) {
                 fpsHud.style.display = fpsVisible ? 'block' : 'none';
             }
         }
 
-        if (event.key.toLowerCase() === 't') {
+        if (key === 't') {
             cameraView.topDown = !cameraView.topDown;
+            if (cameraView.topDown) {
+                cameraView.planetTour = false;
+                cameraModeSwitch.active = false;
+            } else {
+                scheduleNextModeSwitch(performance.now());
+            }
+        }
+
+        if (key === 'o') {
+            switchOrbitModeSmooth(!cameraView.planetTour, performance.now());
         }
     }
     
@@ -741,6 +857,284 @@ function sceneInit() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function startPlanetTour(nowMs) {
+        if (cameraTourTargets.length === 0) {
+            cameraView.planetTour = false;
+            return;
+        }
+
+        rebuildCameraTourOrder();
+
+        cameraTour.index = 0;
+        cameraTour.phase = 'approach';
+        cameraTour.phaseStartedAt = nowMs || performance.now();
+        cameraTour.angle = 0;
+        cameraTour.transferFromIndex = 0;
+        cameraTour.transferToIndex = cameraTourOrder.length > 1 ? 1 : 0;
+        cameraTour.initialized = false;
+        cameraTourWork.virtualPos.copy(camera.position);
+        cameraTourWork.virtualQuat.copy(camera.quaternion);
+        seedPlanetTourAngleForCurrentTarget();
+    }
+
+    function rebuildCameraTourOrder(anchorTarget = null) {
+        cameraTourOrder.length = 0;
+
+        for (let i = 0; i < cameraTourTargets.length; i++) {
+            cameraTourOrder.push(cameraTourTargets[i]);
+        }
+
+        for (let i = cameraTourOrder.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const temp = cameraTourOrder[i];
+            cameraTourOrder[i] = cameraTourOrder[j];
+            cameraTourOrder[j] = temp;
+        }
+
+        if (anchorTarget) {
+            const anchorIdx = cameraTourOrder.indexOf(anchorTarget);
+            if (anchorIdx > 0) {
+                const temp = cameraTourOrder[0];
+                cameraTourOrder[0] = cameraTourOrder[anchorIdx];
+                cameraTourOrder[anchorIdx] = temp;
+            }
+        }
+    }
+
+    function getCameraTourTarget(index) {
+        if (cameraTourOrder.length === 0) {
+            rebuildCameraTourOrder();
+        }
+
+        if (cameraTourOrder.length === 0) {
+            return null;
+        }
+        return cameraTourOrder[index % cameraTourOrder.length] || null;
+    }
+
+    function getTargetOrbitRadius(target) {
+        return (target && target.geometry && target.geometry.parameters && target.geometry.parameters.radius)
+            ? target.geometry.parameters.radius
+            : 18;
+    }
+
+    function seedPlanetTourAngleForCurrentTarget() {
+        if (!camera || cameraTourTargets.length === 0) {
+            return;
+        }
+
+        const target = getCameraTourTarget(cameraTour.index);
+        if (!target) {
+            return;
+        }
+
+        target.getWorldPosition(cameraTourWork.targetPos);
+        cameraTour.angle = Math.atan2(
+            camera.position.z - cameraTourWork.targetPos.z,
+            camera.position.x - cameraTourWork.targetPos.x
+        );
+    }
+
+    // Smooth camera flyby: approach a planet, orbit around it, then continue to the next one.
+    function updatePlanetTourCamera(now, deltaSec) {
+        if (!camera || cameraTourTargets.length === 0) {
+            return;
+        }
+
+        if (cameraTourOrder.length === 0) {
+            rebuildCameraTourOrder();
+            if (cameraTourOrder.length === 0) {
+                return;
+            }
+        }
+
+        let phaseElapsed = now - cameraTour.phaseStartedAt;
+
+        if (cameraTour.phase === 'approach' && phaseElapsed >= cameraTour.approachMs) {
+            cameraTour.phase = 'orbit';
+            cameraTour.phaseStartedAt = now;
+            phaseElapsed = 0;
+        } else if (cameraTour.phase === 'orbit' && phaseElapsed >= cameraTour.orbitMs) {
+            if (cameraTourOrder.length <= 1) {
+                cameraTour.phaseStartedAt = now;
+                phaseElapsed = 0;
+            } else {
+                const currentTarget = getCameraTourTarget(cameraTour.index);
+                const reachedLoopEnd = cameraTour.index >= (cameraTourOrder.length - 1);
+
+                cameraTour.phase = 'transfer';
+                if (reachedLoopEnd && currentTarget) {
+                    rebuildCameraTourOrder(currentTarget);
+                    cameraTour.index = 0;
+                    cameraTour.transferFromIndex = 0;
+                    cameraTour.transferToIndex = 1;
+                } else {
+                    cameraTour.transferFromIndex = cameraTour.index;
+                    cameraTour.transferToIndex = cameraTour.index + 1;
+                }
+                cameraTour.phaseStartedAt = now;
+                phaseElapsed = 0;
+                cameraTourWork.fromDesiredPos.copy(camera.position);
+                if (cameraTour.initialized) {
+                    cameraTourWork.fromTargetPos.copy(cameraTourWork.smoothedLook);
+                } else {
+                    camera.getWorldDirection(cameraTourWork.fromOffset);
+                    cameraTourWork.fromTargetPos.copy(camera.position).addScaledVector(cameraTourWork.fromOffset, 140);
+                }
+            }
+        } else if (cameraTour.phase === 'transfer' && phaseElapsed >= cameraTour.transferMs) {
+            cameraTour.index = cameraTour.transferToIndex;
+            cameraTour.phase = 'orbit';
+            cameraTour.phaseStartedAt = now;
+            phaseElapsed = 0;
+            seedPlanetTourAngleForCurrentTarget();
+        }
+
+        const orbitAngularSpeed = (Math.PI * 2 * cameraTour.turnsPerPlanet) / (cameraTour.orbitMs * 0.001);
+        let angularSpeed = orbitAngularSpeed;
+        if (cameraTour.phase === 'approach') {
+            angularSpeed = cameraTour.approachAngularSpeed;
+        } else if (cameraTour.phase === 'transfer') {
+            angularSpeed = cameraTour.transferAngularSpeed;
+        }
+
+        cameraTour.angle += angularSpeed * deltaSec;
+        const orbitAngle = cameraTour.angle;
+
+        if (cameraTour.phase === 'transfer') {
+            const toTarget = getCameraTourTarget(cameraTour.transferToIndex);
+            if (!toTarget) {
+                return;
+            }
+
+            toTarget.getWorldPosition(cameraTourWork.toTargetPos);
+            const toRadius = getTargetOrbitRadius(toTarget);
+            const toDistance = THREE.MathUtils.clamp(
+                (toRadius * 4.4) + cameraTour.distancePadding,
+                cameraTour.minDistance,
+                cameraTour.maxDistance
+            );
+            const toHeight = (toRadius * 1.6) + cameraTour.baseHeight;
+            const transferProgress = THREE.MathUtils.clamp(phaseElapsed / cameraTour.transferMs, 0, 1);
+            const smoothTransfer = transferProgress * transferProgress * (3 - (2 * transferProgress));
+            const lookBlendRaw = THREE.MathUtils.clamp(
+                (smoothTransfer - cameraTour.transferLookDelay) / (1 - cameraTour.transferLookDelay),
+                0,
+                1
+            );
+            const smoothLookBlend = lookBlendRaw * lookBlendRaw * (3 - (2 * lookBlendRaw));
+            const verticalBlendRaw = THREE.MathUtils.clamp(
+                (smoothTransfer - cameraTour.transferVerticalDelay) / (1 - cameraTour.transferVerticalDelay),
+                0,
+                1
+            );
+            const smoothVerticalBlend = verticalBlendRaw * verticalBlendRaw * (3 - (2 * verticalBlendRaw));
+            const transferDistanceScale = THREE.MathUtils.lerp(1.42, cameraTour.transferArrivalScale, smoothTransfer);
+            const transferHeightScale = THREE.MathUtils.lerp(1.18, 1.03, smoothTransfer);
+            const transferAngleOffset = THREE.MathUtils.lerp(0.42, 0.08, smoothTransfer);
+
+            cameraTourWork.toOffset.set(
+                Math.cos(orbitAngle + transferAngleOffset) * toDistance * transferDistanceScale,
+                (toHeight * transferHeightScale) + (Math.sin((now * 0.001) + (cameraTour.transferToIndex * 0.33)) * 2.2),
+                Math.sin(orbitAngle + transferAngleOffset) * toDistance * 0.92 * transferDistanceScale
+            );
+            cameraTourWork.toDesiredPos.copy(cameraTourWork.toTargetPos).add(cameraTourWork.toOffset);
+
+            cameraTourWork.desiredPos.lerpVectors(cameraTourWork.fromDesiredPos, cameraTourWork.toDesiredPos, smoothTransfer);
+            cameraTourWork.desiredPos.y = THREE.MathUtils.lerp(
+                cameraTourWork.fromDesiredPos.y,
+                cameraTourWork.toDesiredPos.y,
+                smoothVerticalBlend
+            );
+            cameraTourWork.desiredLook.lerpVectors(cameraTourWork.fromTargetPos, cameraTourWork.toTargetPos, smoothLookBlend);
+            cameraTourWork.desiredLook.y += toRadius * 0.24 * smoothLookBlend;
+        } else {
+            const target = getCameraTourTarget(cameraTour.index);
+            if (!target) {
+                return;
+            }
+
+            target.getWorldPosition(cameraTourWork.targetPos);
+            const targetRadius = getTargetOrbitRadius(target);
+            const orbitDistance = THREE.MathUtils.clamp(
+                (targetRadius * 4.4) + cameraTour.distancePadding,
+                cameraTour.minDistance,
+                cameraTour.maxDistance
+            );
+            const orbitHeight = (targetRadius * 1.6) + cameraTour.baseHeight;
+
+            if (cameraTour.phase === 'approach') {
+                const progress = THREE.MathUtils.clamp(phaseElapsed / cameraTour.approachMs, 0, 1);
+                const smoothProgress = progress * progress * (3 - (2 * progress));
+                const approachDistance = THREE.MathUtils.lerp(orbitDistance * 2.1, orbitDistance, smoothProgress);
+                const approachHeight = THREE.MathUtils.lerp(orbitHeight * 1.65, orbitHeight, smoothProgress);
+
+                cameraTourWork.offset.set(
+                    Math.cos(orbitAngle) * approachDistance,
+                    approachHeight + (Math.sin((now * 0.0011) + (cameraTour.index * 0.37)) * 3.4),
+                    Math.sin(orbitAngle) * approachDistance * 0.92
+                );
+            } else {
+                const distancePulse = 1 + (Math.sin((now * 0.0015) + (cameraTour.index * 1.3)) * 0.08);
+
+                cameraTourWork.offset.set(
+                    Math.cos(orbitAngle) * orbitDistance * distancePulse,
+                    orbitHeight + (Math.sin((orbitAngle * 1.2) + (now * 0.0008)) * 5.4),
+                    Math.sin(orbitAngle) * orbitDistance * 0.88 * distancePulse
+                );
+            }
+
+            cameraTourWork.desiredPos.copy(cameraTourWork.targetPos).add(cameraTourWork.offset);
+            cameraTourWork.desiredLook.copy(cameraTourWork.targetPos);
+            if (cameraTour.phase !== 'orbit') {
+                cameraTourWork.desiredLook.y += targetRadius * 0.22;
+            }
+        }
+
+        if (!cameraTour.initialized) {
+            cameraTour.initialized = true;
+            cameraTourWork.smoothedLook.copy(cameraTourWork.desiredLook);
+            cameraTourWork.smoothedPosY = cameraTourWork.desiredPos.y;
+            cameraTourWork.smoothedLookY = cameraTourWork.desiredLook.y;
+        }
+
+        const verticalPosAlpha = THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.verticalPosDamping * deltaSec), 0.008, 0.12);
+        const verticalLookAlpha = THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.verticalLookDamping * deltaSec), 0.008, 0.1);
+        cameraTourWork.smoothedPosY += (cameraTourWork.desiredPos.y - cameraTourWork.smoothedPosY) * verticalPosAlpha;
+        cameraTourWork.smoothedLookY += (cameraTourWork.desiredLook.y - cameraTourWork.smoothedLookY) * verticalLookAlpha;
+        cameraTourWork.desiredPos.y = cameraTourWork.smoothedPosY;
+        cameraTourWork.desiredLook.y = cameraTourWork.smoothedLookY;
+
+        const lookDx = cameraTourWork.desiredLook.x - cameraTourWork.virtualPos.x;
+        const lookDz = cameraTourWork.desiredLook.z - cameraTourWork.virtualPos.z;
+        const planarLookDist = Math.sqrt((lookDx * lookDx) + (lookDz * lookDz));
+        if (planarLookDist > 0.001 && cameraTour.phase !== 'orbit') {
+            const minPitchTan = Math.tan(THREE.MathUtils.degToRad(cameraTour.minPitchDeg));
+            const maxPitchTan = Math.tan(THREE.MathUtils.degToRad(cameraTour.maxPitchDeg));
+            const desiredPitchTan = (cameraTourWork.desiredLook.y - cameraTourWork.virtualPos.y) / planarLookDist;
+            const clampedPitchTan = THREE.MathUtils.clamp(desiredPitchTan, minPitchTan, maxPitchTan);
+            cameraTourWork.desiredLook.y = cameraTourWork.virtualPos.y + (clampedPitchTan * planarLookDist);
+        }
+
+        const positionAlpha = THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.positionDamping * deltaSec), 0.01, 0.18);
+        const lookAlpha = cameraTour.phase === 'orbit'
+            ? THREE.MathUtils.clamp(1 - Math.exp(-(cameraTour.lookDamping + 1.9) * deltaSec), 0.03, 0.22)
+            : THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.lookDamping * deltaSec), 0.01, 0.12);
+        const rotationAlpha = cameraTour.phase === 'orbit'
+            ? THREE.MathUtils.clamp(1 - Math.exp(-(cameraTour.rotationDamping + 1.4) * deltaSec), 0.02, 0.18)
+            : THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.rotationDamping * deltaSec), 0.01, 0.1);
+
+        cameraTourWork.virtualPos.lerp(cameraTourWork.desiredPos, positionAlpha);
+        cameraTourWork.smoothedLook.lerp(cameraTourWork.desiredLook, lookAlpha);
+
+        camera.up.set(0, 1, 0);
+        cameraTourWork.lookMatrix.lookAt(cameraTourWork.virtualPos, cameraTourWork.smoothedLook, camera.up);
+        cameraTourWork.desiredQuat.setFromRotationMatrix(cameraTourWork.lookMatrix);
+        cameraTourWork.virtualQuat.slerp(cameraTourWork.desiredQuat, rotationAlpha);
+        camera.position.copy(cameraTourWork.virtualPos);
+        camera.quaternion.copy(cameraTourWork.virtualQuat);
     }
     
     // Cosmic text spawner (needs closure over scene + camera)
@@ -817,7 +1211,7 @@ function sceneInit() {
     const probeEmissiveHot = new THREE.Color(0xff1414);
     const probeColorWork = new THREE.Color();
     const probeEmissiveWork = new THREE.Color();
-        const cameraMotion = {
+    const cameraMotion = {
         radius: 2040,
         orbitSpeed: 0.00022,
         radiusSwing: 160,
@@ -825,7 +1219,7 @@ function sceneInit() {
         verticalAmp: 170,
         verticalSpeed: 0.00031
     };
-    
+
     function animate(now) {
         if (typeof now !== 'number') {
             now = performance.now();
@@ -853,11 +1247,20 @@ function sceneInit() {
             return;
         }
 
+        const deltaSec = probeState.lastFrameAt > 0
+            ? Math.min(0.05, (now - probeState.lastFrameAt) * 0.001)
+            : 0.016;
+        probeState.lastFrameAt = now;
+
+        if (!cameraView.topDown && cameraModeSwitch.enabled && !cameraModeSwitch.active && now >= cameraModeSwitch.nextSwitchAt) {
+            switchOrbitModeSmooth(!cameraView.planetTour, now);
+        }
+
         if (cameraView.topDown) {
             camera.up.set(0, 0, -1);
             camera.position.set(0, cameraView.topHeight, 0.01);
             camera.lookAt(0, 0, 0);
-        } else {
+        } else if (!cameraView.planetTour) {
             camera.up.set(0, 1, 0);
             const orbitAngle = now * cameraMotion.orbitSpeed;
             const orbitRadius = cameraMotion.radius + (Math.sin(now * 0.00019) * cameraMotion.radiusSwing);
@@ -885,6 +1288,28 @@ function sceneInit() {
             planet.pivot.rotation.y = orbit.longitude;
         }
 
+        if (cameraView.planetTour) {
+            updatePlanetTourCamera(now, deltaSec);
+        }
+
+        if (cameraModeSwitch.active) {
+            const transitionProgress = THREE.MathUtils.clamp(
+                (now - cameraModeSwitch.startedAt) / cameraModeSwitch.transitionMs,
+                0,
+                1
+            );
+            const smoothTransition = transitionProgress * transitionProgress * (3 - (2 * transitionProgress));
+
+            cameraModeSwitch.blendPos.lerpVectors(cameraModeSwitch.startPos, camera.position, smoothTransition);
+            cameraModeSwitch.targetQuat.copy(camera.quaternion);
+            camera.quaternion.copy(cameraModeSwitch.startQuat).slerp(cameraModeSwitch.targetQuat, smoothTransition);
+            camera.position.copy(cameraModeSwitch.blendPos);
+
+            if (transitionProgress >= 1) {
+                cameraModeSwitch.active = false;
+            }
+        }
+
         if (probeObj && probeCurve && probeTargets.length > 1) {
             if ((now - probeState.lastPathUpdateAt) >= probeState.pathUpdateMs) {
                 for (let i = 0; i < probeTargets.length; i++) {
@@ -897,11 +1322,6 @@ function sceneInit() {
                 }
                 probeState.lastPathUpdateAt = now;
             }
-
-            const deltaSec = probeState.lastFrameAt > 0
-                ? Math.min(0.05, (now - probeState.lastFrameAt) * 0.001)
-                : 0.016;
-            probeState.lastFrameAt = now;
 
             probeState.t += probeState.speed * deltaSec;
             if (probeState.t >= 1) {
