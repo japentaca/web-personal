@@ -16,6 +16,72 @@ const myPlanets = [];
 const myParticles = [];
 let sceneEnabled = true;
 
+// Cosmic text overlay state
+let spawnCosmicTextFn = null;
+const cosmicTextSprites = [];
+
+function makeTextSprite(text) {
+    const canvasW = 1024;
+    const canvasH = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvasW, canvasH);
+
+    const fontSize = 46;
+    ctx.font = `italic ${fontSize}px Georgia, "Times New Roman", serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Word-wrap
+    const maxWidth = canvasW - 100;
+    const lineHeight = fontSize * 1.42;
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    }
+    if (currentLine) lines.push(currentLine);
+
+    const totalTextH = lines.length * lineHeight;
+    const startY = (canvasH - totalTextH) / 2 + lineHeight / 2;
+
+    // Glow pass
+    ctx.shadowColor = 'rgba(160, 220, 255, 1.0)';
+    ctx.shadowBlur = 32;
+    ctx.fillStyle = 'rgba(210, 238, 255, 0.45)';
+    for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], canvasW / 2, startY + i * lineHeight);
+    }
+    // Main text pass
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = 'rgba(238, 250, 255, 0.97)';
+    for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], canvasW / 2, startY + i * lineHeight);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    const sprite = new THREE.Sprite(material);
+    // canvas is 4:1, keep that ratio in world units
+    sprite.scale.set(200, 50, 1);
+    return sprite;
+}
+
 // Helper function to map values from one range to another
 function mapRange(value, inMin, inMax, outMin, outMax) {
     return outMin + (outMax - outMin) * ((value - inMin) / (inMax - inMin));
@@ -32,7 +98,12 @@ function addBase(path) {
 }
 
 function addAudioSet(set) {
-    audio.addAudioSet(set);
+    const hasText = Array.isArray(set.files) && set.files.some(f => f.text);
+    const intervalMin = (set.parms && set.parms.interval) ? set.parms.interval.min : 9;
+    const onText = hasText
+        ? (text) => { if (spawnCosmicTextFn && text) spawnCosmicTextFn(text, intervalMin); }
+        : null;
+    audio.addAudioSet(set, onText);
 }
 
 function solveKeplerEccentricAnomaly(meanAnomaly, eccentricity) {
@@ -653,10 +724,58 @@ function sceneInit() {
         renderer.setSize(window.innerWidth, window.innerHeight);
     }
     
+    // Cosmic text spawner (needs closure over scene + camera)
+    // Sprites live in camera space so they always stay visible as the camera orbits.
+    // camRelPos is in camera-local coordinates: +X right, +Y up, -Z forward.
+    function spawnCosmicText(text, intervalSec) {
+        if (!text || !scene || !camera) return;
+        const nowMs = performance.now();
+        // Cooldown = 90% of the set's minimum interval, so at most one text per cycle
+        const cooldownMs = (intervalSec || 9) * 1000 * 0.9;
+        if (cosmicTextSprites.length > 0) {
+            const newest = cosmicTextSprites[cosmicTextSprites.length - 1];
+            if ((nowMs - newest.userData.spawnedAt) < cooldownMs) return;
+        }
+
+        const sprite = makeTextSprite(text);
+
+        // Spawn near the upper third of the screen (camera-local Y > 0).
+        const camRelPos = new THREE.Vector3(
+            (Math.random() - 0.5) * 38,   // left-right offset in cam space
+            82 + ((Math.random() - 0.5) * 16), // upper area, above previous band
+            -165                           // distance in front (camera looks along -Z)
+        );
+
+        // Place in world space for this frame
+        sprite.position.copy(camRelPos.clone().applyMatrix4(camera.matrixWorld));
+
+        const fadeInDur = 1200;
+        const totalDuration = (intervalSec || 9) * 1000;
+
+        sprite.userData = {
+            spawnedAt: nowMs,
+            totalDuration,
+            fadeInDur,
+            fadeOutDur: totalDuration - fadeInDur,  // lerp 1→0 over this span
+            camRelPos,
+            recedingSpeed: 62,            // units/sec along -Z (receding)
+            lateralDrift: new THREE.Vector2(
+                (Math.random() - 0.5) * 5,   // cam-space X drift/sec
+                2.8 + Math.random() * 1.8    // cam-space Y drift/sec (upward)
+            )
+        };
+
+        scene.add(sprite);
+        cosmicTextSprites.push(sprite);
+    }
+
+    spawnCosmicTextFn = spawnCosmicText;
+
     // Animation variables
     let level = 0;
     let smoothedLevel = -75;
     let lastAudioSampleAt = 0;
+    let lastAnimateNow = 0;
     let probeReactiveDrive = 0;
     let frameCount = 0;
     const reactiveTuning = {
@@ -953,6 +1072,40 @@ function sceneInit() {
             trail.material.color.setHSL(0.045 - (i * 0.005), 0.95, 0.52);
         }
         
+        // Update cosmic text sprites (camera-space tracking + recede)
+        if (cosmicTextSprites.length > 0) {
+            const textDelta = lastAnimateNow > 0 ? Math.min(0.1, (now - lastAnimateNow) * 0.001) : 0.016;
+            for (let i = cosmicTextSprites.length - 1; i >= 0; i--) {
+                const s = cosmicTextSprites[i];
+                const ud = s.userData;
+                const age = now - ud.spawnedAt;
+                if (age >= ud.totalDuration) {
+                    scene.remove(s);
+                    if (s.material.map) s.material.map.dispose();
+                    s.material.dispose();
+                    cosmicTextSprites.splice(i, 1);
+                    continue;
+                }
+                // Advance in camera space: recede along -Z, drift in X/Y
+                ud.camRelPos.z -= ud.recedingSpeed * textDelta;
+                ud.camRelPos.x += ud.lateralDrift.x * textDelta;
+                ud.camRelPos.y += ud.lateralDrift.y * textDelta;
+                // Convert camera-local position to world space each frame
+                s.position.copy(ud.camRelPos.clone().applyMatrix4(camera.matrixWorld));
+
+                let opacity;
+                if (age < ud.fadeInDur) {
+                    // Quick fade-in
+                    opacity = age / ud.fadeInDur;
+                } else {
+                    // Continuous lerp 1 → 0 over fadeOutDur
+                    opacity = 1.0 - (age - ud.fadeInDur) / ud.fadeOutDur;
+                }
+                s.material.opacity = Math.max(0, opacity) * 0.90;
+            }
+        }
+        lastAnimateNow = now;
+
         renderer.render(scene, camera);
     }
 

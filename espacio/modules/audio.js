@@ -127,14 +127,21 @@ function getReactiveLevel() {
     return mixer.meter.getValue()
 }
 
-function addAudioSet(set) {
+function addAudioSet(set, onText) {
     var audioSetMChannel = mixer.addChannel()
 
     if (set && set.reactiveSource === true) {
         attachReactiveMeter(audioSetMChannel)
     }
 
-    var audioSet = new AudioSet(set, audioSetMChannel, duckBase)
+    var transient = function (text) {
+        duckBase()
+        if (typeof onText === 'function' && text) {
+            onText(text)
+        }
+    }
+
+    var audioSet = new AudioSet(set, audioSetMChannel, transient)
     audioSet.start()
 
     myAudioSets.push(audioSet)

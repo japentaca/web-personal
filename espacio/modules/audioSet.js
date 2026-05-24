@@ -73,7 +73,7 @@ export default class {
 
     if (elem.player.loaded) {
       if (this.onTransient) {
-        this.onTransient()
+        this.onTransient(elem.text || null)
       }
       elem.player.start()
     }
