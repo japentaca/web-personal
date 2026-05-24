@@ -417,16 +417,18 @@
         const cursorTrailLayer = document.getElementById('cursorTrailLayer');
         const lensFlare = document.getElementById('lensFlare');
 
-        const fallbackLinks = [
-            { text: 'Espacio!', description: 'Experimentos espaciales, visuales y audio', link: './espacio/index.html' },
-            { text: 'Armonicos de Fibonacci', description: 'Patrones sonoros basados en la sucesion de Fibonacci', link: './fibonaccio/index.html' },
-            { text: 'Laboratorio VHS', description: 'Pruebas de imagen retro y glitches analogicos', link: './labs/vhs/index.html' },
-            { text: 'Galeria Pixel', description: 'Coleccion de piezas y pruebas visuales pixeladas', link: './galeria/pixel/index.html' }
-        ];
+        const revealNote = document.querySelector('.reveal-note');
+
+        function showLinksLoadError(message) {
+            console.error('[links.json]', message);
+            if (revealNote) {
+                revealNote.textContent = message;
+            }
+        }
 
         function sanitizeLinks(input) {
             if (!Array.isArray(input)) {
-                return fallbackLinks;
+                throw new Error('links.json invalido: se esperaba un arreglo');
             }
 
             const clean = input
@@ -438,24 +440,39 @@
                 }))
                 .filter((item) => item.text.length > 0 && item.link.length > 0);
 
-            return clean.length > 0 ? clean : fallbackLinks;
+            if (clean.length === 0) {
+                throw new Error('links.json invalido: no contiene enlaces validos');
+            }
+
+            return clean;
         }
 
         async function loadLinksData() {
-            try {
-                const url = new URL('./assets/links.json', window.location.href).href;
-                const response = await fetch(url, { cache: 'no-store' });
-                if (!response.ok) {
-                    throw new Error('No se pudo cargar links.json');
-                }
-                const data = await response.json();
-                return sanitizeLinks(data);
-            } catch {
-                return fallbackLinks;
+            const baseUrl = new URL('./assets/links.json', window.location.href);
+            baseUrl.searchParams.set('v', Date.now().toString());
+            const url = baseUrl.href;
+            const response = await fetch(url, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`No se pudo cargar links.json (HTTP ${response.status})`);
             }
+
+            let data = null;
+            try {
+                data = await response.json();
+            } catch {
+                throw new Error('links.json invalido: JSON malformado');
+            }
+
+            return sanitizeLinks(data);
         }
 
-        const linksData = await loadLinksData();
+        const linksData = await loadLinksData().catch((error) => {
+            const message = (error && error.message)
+                ? error.message
+                : 'No se pudo cargar links.json';
+            showLinksLoadError(message);
+            throw error;
+        });
 
         function initMatrixRain(canvas) {
             const ctx = canvas.getContext('2d');
