@@ -493,9 +493,28 @@ function sceneInit() {
         });
 
         const saturnRingAlpha = new THREE.TextureLoader().load('./img/2k_saturn_ring_alpha.png');
+    saturnRingAlpha.wrapS = THREE.ClampToEdgeWrapping;
+    saturnRingAlpha.wrapT = THREE.ClampToEdgeWrapping;
+    saturnRingAlpha.minFilter = THREE.LinearFilter;
+    saturnRingAlpha.magFilter = THREE.LinearFilter;
+    saturnRingAlpha.generateMipmaps = false;
         const saturnRingGeo = new THREE.RingBufferGeometry(46, 74, 96);
+        const saturnRingPositions = saturnRingGeo.attributes.position;
+        const saturnRingUvs = saturnRingGeo.attributes.uv;
+        const saturnRingSpan = 74 - 46;
+
+        for (let i = 0; i < saturnRingPositions.count; i += 1) {
+            const x = saturnRingPositions.getX(i);
+            const y = saturnRingPositions.getY(i);
+            const radius = Math.sqrt((x * x) + (y * y));
+            const radialU = THREE.MathUtils.clamp((radius - 46) / saturnRingSpan, 0, 1);
+
+            saturnRingUvs.setXY(i, radialU, 0.5);
+        }
+
+        saturnRingUvs.needsUpdate = true;
         const saturnRingMat = new THREE.MeshBasicMaterial({
-            color: 0xe9d9ab,
+            map: saturnRingAlpha,
             alphaMap: saturnRingAlpha,
             transparent: true,
             opacity: 0.86,
