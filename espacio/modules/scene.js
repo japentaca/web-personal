@@ -1,6 +1,6 @@
 'use strict';
 // Import audio module
-import audio from "./audio.js?v=20260523g";
+import audio from "./audio.js?v=20260524a";
 import { createSceneState, createAnimationConfig } from "./scene/sceneStateFactory.js";
 import {
     makeTextSprite,

@@ -1,5 +1,5 @@
 'use strict'
-import mixerChannel from "./mixerChannel.js?v=20260523b"
+import mixerChannel from "./mixerChannel.js?v=20260524a"
 
 //console.log("mixerChannel...", mixerChannel)
 var compressor = new Tone.Compressor({

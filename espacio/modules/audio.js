@@ -1,8 +1,8 @@
 
 'use strict'
-import mixer from "./mixer/mixer.js?v=20260523e"
+import mixer from "./mixer/mixer.js?v=20260524a"
 console.log("mixer...", mixer)
-import AudioSet from "./audioSet.js?v=20260523b"
+import AudioSet from "./audioSet.js?v=20260524a"
 
 
 export default {
@@ -491,9 +491,8 @@ function getReactiveLevel() {
 
 function addAudioSet(set, onText) {
     var audioSetMChannel = mixer.addChannel()
-
-    if (set && set.reactiveSource === true) {
-        attachReactiveMeter(audioSetMChannel)
+    var channelFactory = function () {
+        return mixer.addChannel()
     }
 
     var transient = function (text) {
@@ -503,7 +502,25 @@ function addAudioSet(set, onText) {
         }
     }
 
-    var audioSet = new AudioSet(set, audioSetMChannel, transient)
+    var audioSet = new AudioSet(set, audioSetMChannel, transient, channelFactory)
+
+    if (set && set.reactiveSource === true) {
+        var reactiveChannelName = 'main'
+
+        if (set.effects
+            && set.effects.matrix
+            && typeof set.effects.matrix.defaultChannel === 'string'
+            && set.effects.matrix.defaultChannel.trim()) {
+            reactiveChannelName = set.effects.matrix.defaultChannel.trim()
+        }
+
+        var reactiveChannel = (audioSet && typeof audioSet.getMixerChannel === 'function')
+            ? audioSet.getMixerChannel(reactiveChannelName)
+            : audioSetMChannel
+
+        attachReactiveMeter(reactiveChannel || audioSetMChannel)
+    }
+
     audioSet.start()
 
     myAudioSets.push(audioSet)

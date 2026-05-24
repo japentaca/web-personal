@@ -548,6 +548,8 @@ export function createToursController({ threeLib, state, refs, timeNow = () => p
         cameraTour.angle += angularSpeed * deltaSec;
         const orbitAngle = cameraTour.angle;
 
+        let transferProgressForTurn = 0;
+
         if (cameraTour.phase === 'transfer') {
             const toTarget = getCameraTourTarget(cameraTour.transferToIndex);
             if (!toTarget) {
@@ -564,12 +566,8 @@ export function createToursController({ threeLib, state, refs, timeNow = () => p
             const toHeight = (toRadius * 1.6) + cameraTour.baseHeight;
             const transferProgress = threeLib.MathUtils.clamp(phaseElapsed / cameraTour.transferMs, 0, 1);
             const smoothTransfer = transferProgress * transferProgress * (3 - (2 * transferProgress));
-            const lookBlendRaw = threeLib.MathUtils.clamp(
-                (smoothTransfer - cameraTour.transferLookDelay) / (1 - cameraTour.transferLookDelay),
-                0,
-                1
-            );
-            const smoothLookBlend = lookBlendRaw * lookBlendRaw * (3 - (2 * lookBlendRaw));
+            transferProgressForTurn = smoothTransfer;
+            const smoothLookBlend = smoothTransfer;
             const verticalBlendRaw = threeLib.MathUtils.clamp(
                 (smoothTransfer - cameraTour.transferVerticalDelay) / (1 - cameraTour.transferVerticalDelay),
                 0,
@@ -594,7 +592,6 @@ export function createToursController({ threeLib, state, refs, timeNow = () => p
                 smoothVerticalBlend
             );
             cameraTourWork.desiredLook.lerpVectors(cameraTourWork.fromTargetPos, cameraTourWork.toTargetPos, smoothLookBlend);
-            cameraTourWork.desiredLook.y += toRadius * 0.24 * smoothLookBlend;
         } else {
             const target = getCameraTourTarget(cameraTour.index);
             if (!target) {
@@ -623,21 +620,28 @@ export function createToursController({ threeLib, state, refs, timeNow = () => p
                 );
             } else {
                 const distancePulse = 1 + (Math.sin((now * 0.0015) + (cameraTour.index * 1.3)) * 0.08);
+                const orbitEntryBlendRaw = threeLib.MathUtils.clamp(phaseElapsed / cameraTour.orbitEntryBlendMs, 0, 1);
+                const orbitEntryBlend = orbitEntryBlendRaw * orbitEntryBlendRaw * (3 - (2 * orbitEntryBlendRaw));
 
                 setEquatorialOrbitOffset(
                     target,
                     orbitAngle,
                     orbitDistance * distancePulse,
                     orbitDistance * 0.88 * distancePulse,
-                    cameraTourWork.offset
+                    cameraTourWork.toOffset
                 );
+
+                cameraTourWork.fromOffset.set(
+                    Math.cos(orbitAngle) * orbitDistance,
+                    orbitHeight + (Math.sin((now * 0.0011) + (cameraTour.index * 0.37)) * 3.4),
+                    Math.sin(orbitAngle) * orbitDistance * 0.92
+                );
+
+                cameraTourWork.offset.lerpVectors(cameraTourWork.fromOffset, cameraTourWork.toOffset, orbitEntryBlend);
             }
 
             cameraTourWork.desiredPos.copy(cameraTourWork.targetPos).add(cameraTourWork.offset);
             cameraTourWork.desiredLook.copy(cameraTourWork.targetPos);
-            if (cameraTour.phase !== 'orbit') {
-                cameraTourWork.desiredLook.y += targetRadius * 0.22;
-            }
         }
 
         if (!cameraTour.initialized) {
@@ -665,13 +669,41 @@ export function createToursController({ threeLib, state, refs, timeNow = () => p
             cameraTourWork.desiredLook.y = cameraTourWork.virtualPos.y + (clampedPitchTan * planarLookDist);
         }
 
+        const isOrbitPhase = cameraTour.phase === 'orbit';
+        const isTransferPhase = cameraTour.phase === 'transfer';
+        const orbitSettle = isOrbitPhase
+            ? (() => {
+                const orbitSettleRaw = threeLib.MathUtils.clamp(phaseElapsed / cameraTour.orbitEntryBlendMs, 0, 1);
+                return orbitSettleRaw * orbitSettleRaw * (3 - (2 * orbitSettleRaw));
+            })()
+            : 0;
         const positionAlpha = threeLib.MathUtils.clamp(1 - Math.exp(-cameraTour.positionDamping * deltaSec), 0.01, 0.18);
-        const lookAlpha = cameraTour.phase === 'orbit'
-            ? threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.lookDamping + 1.9) * deltaSec), 0.03, 0.22)
-            : threeLib.MathUtils.clamp(1 - Math.exp(-cameraTour.lookDamping * deltaSec), 0.01, 0.12);
-        const rotationAlpha = cameraTour.phase === 'orbit'
-            ? threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.rotationDamping + 1.4) * deltaSec), 0.02, 0.18)
-            : threeLib.MathUtils.clamp(1 - Math.exp(-cameraTour.rotationDamping * deltaSec), 0.01, 0.1);
+        const lookAlpha = isOrbitPhase
+            ? threeLib.MathUtils.lerp(
+                threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.lookDamping + 1.8) * deltaSec), 0.03, 0.2),
+                threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.lookDamping + 4.1) * deltaSec), 0.12, 0.5),
+                orbitSettle
+            )
+            : isTransferPhase
+                ? threeLib.MathUtils.lerp(
+                    threeLib.MathUtils.clamp(1 - Math.exp(-cameraTour.lookDamping * deltaSec), 0.01, 0.12),
+                    threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.lookDamping + 3.8) * deltaSec), 0.06, 0.38),
+                    transferProgressForTurn
+                )
+                : threeLib.MathUtils.clamp(1 - Math.exp(-cameraTour.lookDamping * deltaSec), 0.01, 0.12);
+        const rotationAlpha = isOrbitPhase
+            ? threeLib.MathUtils.lerp(
+                threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.rotationDamping + 1.4) * deltaSec), 0.02, 0.18),
+                threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.rotationDamping + 4.6) * deltaSec), 0.1, 0.54),
+                orbitSettle
+            )
+            : isTransferPhase
+                ? threeLib.MathUtils.lerp(
+                    threeLib.MathUtils.clamp(1 - Math.exp(-cameraTour.rotationDamping * deltaSec), 0.01, 0.1),
+                    threeLib.MathUtils.clamp(1 - Math.exp(-(cameraTour.rotationDamping + 3.9) * deltaSec), 0.05, 0.36),
+                    transferProgressForTurn
+                )
+                : threeLib.MathUtils.clamp(1 - Math.exp(-cameraTour.rotationDamping * deltaSec), 0.01, 0.1);
 
         cameraTourWork.virtualPos.lerp(cameraTourWork.desiredPos, positionAlpha);
         cameraTourWork.smoothedLook.lerp(cameraTourWork.desiredLook, lookAlpha);

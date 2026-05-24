@@ -9,6 +9,173 @@
     }
   ],
   "audioSetLibrary": {
+    "disponibles": {
+      "inventarioToneJS": {
+        "nota": "Inventario de efectos y procesadores comunes de Tone.js para referencia y copy/paste.",
+        "dinamica": {
+          "Compressor": {
+            "threshold": -24,
+            "ratio": 3,
+            "attack": 0.02,
+            "release": 0.2,
+            "knee": 16
+          },
+          "Limiter": {
+            "threshold": -6
+          },
+          "Gate": {
+            "threshold": -40,
+            "smoothing": 0.1
+          },
+          "MultibandCompressor": {
+            "lowFrequency": 220,
+            "highFrequency": 2200,
+            "low": {
+              "threshold": -30,
+              "ratio": 4,
+              "attack": 0.03,
+              "release": 0.25,
+              "knee": 10
+            },
+            "mid": {
+              "threshold": -24,
+              "ratio": 3,
+              "attack": 0.02,
+              "release": 0.12,
+              "knee": 16
+            },
+            "high": {
+              "threshold": -22,
+              "ratio": 2,
+              "attack": 0.01,
+              "release": 0.08,
+              "knee": 20
+            }
+          }
+        },
+        "espacialYMezcla": {
+          "Volume": {
+            "volume": -6
+          },
+          "Panner": {
+            "pan": -0.25
+          },
+          "StereoWidener": {
+            "width": 0.6
+          },
+          "PanVol": {
+            "pan": 0.15,
+            "volume": -4
+          }
+        },
+        "filtroYTono": {
+          "EQ3": {
+            "low": -3,
+            "mid": 1,
+            "high": 2,
+            "lowFrequency": 300,
+            "highFrequency": 2400
+          },
+          "Filter": {
+            "type": "lowpass",
+            "frequency": 1200,
+            "Q": 1
+          },
+          "AutoFilter": {
+            "frequency": "4n",
+            "baseFrequency": 200,
+            "octaves": 3,
+            "depth": 0.8,
+            "wet": 0.6
+          },
+          "AutoWah": {
+            "baseFrequency": 120,
+            "octaves": 5,
+            "sensitivity": -20,
+            "Q": 2,
+            "wet": 0.5
+          }
+        },
+        "tiempoYEspacio": {
+          "FeedbackDelay": {
+            "delayTime": "8n",
+            "feedback": 0.35,
+            "wet": 0.4
+          },
+          "PingPongDelay": {
+            "delayTime": "8n",
+            "feedback": 0.25,
+            "wet": 0.35
+          },
+          "Reverb": {
+            "decay": 2.5,
+            "preDelay": 0.01,
+            "wet": 0.25
+          },
+          "Freeverb": {
+            "roomSize": 0.7,
+            "dampening": 2500,
+            "wet": 0.25
+          },
+          "JCReverb": {
+            "roomSize": 0.5,
+            "wet": 0.2
+          }
+        },
+        "modulacion": {
+          "Chorus": {
+            "frequency": 1.5,
+            "delayTime": 3.5,
+            "depth": 0.7,
+            "spread": 120,
+            "wet": 0.35
+          },
+          "Phaser": {
+            "frequency": 0.4,
+            "octaves": 4,
+            "baseFrequency": 350,
+            "Q": 8,
+            "wet": 0.3
+          },
+          "Tremolo": {
+            "frequency": 7,
+            "depth": 0.7,
+            "spread": 120,
+            "wet": 0.4
+          },
+          "Vibrato": {
+            "frequency": 5,
+            "depth": 0.12,
+            "wet": 0.35
+          },
+          "AutoPanner": {
+            "frequency": "2n",
+            "depth": 0.8,
+            "wet": 0.5
+          }
+        },
+        "distorsionColor": {
+          "Distortion": {
+            "distortion": 0.25,
+            "oversample": "4x",
+            "wet": 0.3
+          },
+          "BitCrusher": {
+            "bits": 6,
+            "wet": 0.25
+          },
+          "Chebyshev": {
+            "order": 25,
+            "oversample": "4x",
+            "wet": 0.2
+          },
+          "FrequencyShifter": {
+            "frequency": 80,
+            "wet": 0.2
+          }
+        }
+      }
+    },
     "set2": {
       "parms": {
         "interval": {
@@ -80,7 +247,7 @@
         "eq": {
           "high": 5,
           "mid": 0,
-          "low": -10
+          "low": -5
         }
       },
       "files": [

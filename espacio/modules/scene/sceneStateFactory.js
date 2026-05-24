@@ -88,6 +88,7 @@ export function createSceneState(threeLib) {
             phaseStartedAt: 0,
             approachMs: 6800,
             orbitMs: 18000,
+            orbitEntryBlendMs: 2000,
             transferMs: 7200,
             turnsPerPlanet: 2,
             minDistance: 100,
