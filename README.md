@@ -13,3 +13,15 @@ Sitio web personal estatico con una portada principal y una experiencia 3D en `e
 ## Descripcion
 
 El proyecto combina una portada de estilo retro-web con una seccion inmersiva de exploracion espacial en 3D. La portada funciona como hub visual y de navegacion, mientras que `espacio/` concentra la simulacion con recursos graficos, audio y modulos de logica.
+
+## Mantenimiento de escena 3D
+
+- Mapa de cambios por responsabilidad: `espacio/modules/scene/CHANGE_MAP.md`
+- Orquestador principal de runtime: `espacio/modules/scene.js`
+- Utilidades y shaders de escena: `espacio/modules/scene/sceneUtils.js`
+- Particulas de Marte: `espacio/modules/scene/marsParticles.js`
+- Parametros y estado inicial: `espacio/modules/scene/sceneStateFactory.js`
+- Tours orbitales de camara/sonda: `espacio/modules/scene/toursController.js`
+- Input, resize y HUD de FPS: `espacio/modules/scene/uiController.js`
+- Visuales audio-reactivos: `espacio/modules/scene/reactiveController.js`
+- Texto cosmico (spawn/update/fade): `espacio/modules/scene/cosmicTextController.js`

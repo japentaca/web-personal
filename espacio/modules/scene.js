@@ -1,6 +1,28 @@
 'use strict';
 // Import audio module
 import audio from "./audio.js?v=20260523g";
+import { createSceneState, createAnimationConfig } from "./scene/sceneStateFactory.js";
+import {
+    makeTextSprite,
+    mapRange,
+    solveKeplerEccentricAnomaly,
+    getSphereSegments,
+    createFresnelAtmosphere
+} from "./scene/sceneUtils.js";
+import { addMarsParticles } from "./scene/marsParticles.js";
+import { createToursController } from "./scene/toursController.js";
+import { createUiController } from "./scene/uiController.js";
+import { createReactiveController } from "./scene/reactiveController.js";
+import { createCosmicTextController } from "./scene/cosmicTextController.js";
+
+// Maintenance index:
+// - Shared math/render helpers: ./scene/sceneUtils.js
+// - Mars particle systems: ./scene/marsParticles.js
+// - Scene defaults and tunings: ./scene/sceneStateFactory.js
+// - Camera/probe orbit tours: ./scene/toursController.js
+// - Input/resize/FPS HUD: ./scene/uiController.js
+// - Audio-reactive visuals: ./scene/reactiveController.js
+// - Cosmic text spawn/update: ./scene/cosmicTextController.js
 
 // Main export object with function references
 export default {
@@ -15,77 +37,13 @@ export default {
 const myPlanets = [];
 const myParticles = [];
 let sceneEnabled = true;
+const marsParticleTextures = {
+    ember: null,
+    smoke: null
+};
 
 // Cosmic text overlay state
 let spawnCosmicTextFn = null;
-const cosmicTextSprites = [];
-
-function makeTextSprite(text) {
-    const canvasW = 1024;
-    const canvasH = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = canvasW;
-    canvas.height = canvasH;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvasW, canvasH);
-
-    const fontSize = 46;
-    ctx.font = `italic ${fontSize}px Georgia, "Times New Roman", serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // Word-wrap
-    const maxWidth = canvasW - 100;
-    const lineHeight = fontSize * 1.42;
-    const words = text.split(' ');
-    const lines = [];
-    let currentLine = '';
-    for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word;
-        if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-            lines.push(currentLine);
-            currentLine = word;
-        } else {
-            currentLine = testLine;
-        }
-    }
-    if (currentLine) lines.push(currentLine);
-
-    const totalTextH = lines.length * lineHeight;
-    const startY = (canvasH - totalTextH) / 2 + lineHeight / 2;
-
-    // Glow pass
-    ctx.shadowColor = 'rgba(160, 220, 255, 1.0)';
-    ctx.shadowBlur = 32;
-    ctx.fillStyle = 'rgba(210, 238, 255, 0.45)';
-    for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], canvasW / 2, startY + i * lineHeight);
-    }
-    // Main text pass
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = 'rgba(238, 250, 255, 0.97)';
-    for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], canvasW / 2, startY + i * lineHeight);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-    });
-    const sprite = new THREE.Sprite(material);
-    // canvas is 4:1, keep that ratio in world units
-    sprite.scale.set(200, 50, 1);
-    return sprite;
-}
-
-// Helper function to map values from one range to another
-function mapRange(value, inMin, inMax, outMin, outMax) {
-    return outMin + (outMax - outMin) * ((value - inMin) / (inMax - inMin));
-}
 
 // Audio control functions
 function toggleAudio() {
@@ -104,29 +62,6 @@ function addAudioSet(set) {
         ? (text) => { if (spawnCosmicTextFn && text) spawnCosmicTextFn(text, intervalMin); }
         : null;
     audio.addAudioSet(set, onText);
-}
-
-function solveKeplerEccentricAnomaly(meanAnomaly, eccentricity) {
-    let E = meanAnomaly;
-    for (let i = 0; i < 4; i++) {
-        const f = E - (eccentricity * Math.sin(E)) - meanAnomaly;
-        const fp = 1 - (eccentricity * Math.cos(E));
-        E -= f / fp;
-    }
-    return E;
-}
-
-function getSphereSegments(radius) {
-    if (radius >= 90) {
-        return { width: 64, height: 48 };
-    }
-    if (radius >= 30) {
-        return { width: 40, height: 28 };
-    }
-    if (radius >= 14) {
-        return { width: 28, height: 18 };
-    }
-    return { width: 18, height: 12 };
 }
 
 // Creates a planet with appropriate texture and orbit
@@ -175,80 +110,6 @@ function addPlanet(parent, radius, distance, rotationSpeed, translationSpeed, in
     return mesh;
 }
 
-// Add particle system to a parent object
-function addParticles(parent) {
-    const particleSystem = new Partykals.ParticlesSystem({
-        container: parent,
-        particles: {
-            globalSize: 2.8,
-            ttl: 6,
-            velocity: new Partykals.Randomizers.SphereRandomizer(13.5),
-            startColor: new Partykals.Randomizers.ColorsRandomizer(
-                new THREE.Color(1, 0.22, 0.04),
-                new THREE.Color(1, 0.45, 0.06)
-            ),
-            endColor: new THREE.Color(0.45, 0.02, 0.02),
-        },
-        system: {
-            particlesCount: 560,
-            emitters: new Partykals.Emitter({
-                onInterval: new Partykals.Randomizers.MinMaxRandomizer(1, 6),
-                interval: new Partykals.Randomizers.MinMaxRandomizer(0, 0.11),
-            }),
-            speed: 1,
-        }
-    });
-    
-    myParticles.push(particleSystem);
-    return particleSystem;
-}
-
-function createFresnelAtmosphere(radius, colorHex, power, intensity) {
-    const geometry = new THREE.SphereBufferGeometry(radius, 32, 24);
-    const material = new THREE.ShaderMaterial({
-        uniforms: {
-            uColor: { value: new THREE.Color(colorHex) },
-            uPower: { value: power },
-            uIntensity: { value: intensity },
-            uOpacity: { value: 1.0 },
-            uCameraPos: { value: new THREE.Vector3() }
-        },
-        vertexShader: `
-            varying vec3 vWorldPos;
-            varying vec3 vWorldNormal;
-
-            void main() {
-                vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                vWorldPos = worldPos.xyz;
-                vWorldNormal = normalize(mat3(modelMatrix) * normal);
-                gl_Position = projectionMatrix * viewMatrix * worldPos;
-            }
-        `,
-        fragmentShader: `
-            uniform vec3 uColor;
-            uniform float uPower;
-            uniform float uIntensity;
-            uniform float uOpacity;
-            uniform vec3 uCameraPos;
-
-            varying vec3 vWorldPos;
-            varying vec3 vWorldNormal;
-
-            void main() {
-                vec3 viewDir = normalize(uCameraPos - vWorldPos);
-                float fresnel = pow(1.0 - max(dot(normalize(vWorldNormal), viewDir), 0.0), uPower);
-                float alpha = clamp(fresnel * uIntensity * uOpacity, 0.0, 1.0);
-                gl_FragColor = vec4(uColor, alpha);
-            }
-        `,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.BackSide
-    });
-
-    return new THREE.Mesh(geometry, material);
-}
 
 // Main scene initialization function
 function sceneInit() {
@@ -266,128 +127,83 @@ function sceneInit() {
     let saturnRings = null;
     let marsAura = null;
     let probeObj = null;
-    let probeCurve = null;
     let probePathLine = null;
     let probeParticleCloud = null;
-    let fpsHud = null;
-    let fpsVisible = false;
-    const SHOW_PROBE_PATH = false;
-    const probeTargets = [];
-    const cameraTourTargets = [];
-    const cameraTourOrder = [];
-    const probeTrails = [];
-    const probePathPoints = [
-        new THREE.Vector3(),
-        new THREE.Vector3(),
-        new THREE.Vector3(),
-        new THREE.Vector3(),
-        new THREE.Vector3(),
-        new THREE.Vector3(),
-        new THREE.Vector3(),
-        new THREE.Vector3()
-    ];
-    const probeWork = {
-        pos: new THREE.Vector3(),
-        tan: new THREE.Vector3(),
-        look: new THREE.Vector3(),
-        tailOrigin: new THREE.Vector3(),
-        prevTail: new THREE.Vector3()
+    const {
+        SHOW_PROBE_PATH,
+        probeTargets,
+        probeTourOrder,
+        cameraTourTargets,
+        cameraTourOrder,
+        probeTrails,
+        probeWork,
+        probeTour,
+        probeTourWork,
+        probeParticles,
+        probeState,
+        fpsState,
+        cameraView,
+        cameraModeSwitch,
+        cameraTour,
+        cameraTourWork,
+        marsTrails,
+        marsTrailWork,
+        equatorBasisWork,
+        marsBaseScale
+    } = createSceneState(THREE);
+    const tourRefs = {
+        camera: null,
+        probeObj: null,
+        probePathLine: null,
+        renderer: null
     };
-    const probeParticles = [];
-    const probeState = {
-        t: 0,
-        speed: 0.02,
-        lastPathUpdateAt: -9999,
-        pathUpdateMs: 120,
-        lastFrameAt: 0
+    const cosmicTextRefs = {
+        scene: null,
+        camera: null
     };
-    const fpsState = {
-        frames: 0,
-        lastSampleAt: 0
-    };
-    const cameraView = {
-        topDown: false,
-        topHeight: 2700,
-        planetTour: false
-    };
-    const cameraModeSwitch = {
-        enabled: true,
-        minSwitchMs: 30000,
-        maxSwitchMs: 90000,
-        nextSwitchAt: 0,
-        transitionMs: 2600,
-        active: false,
-        startedAt: 0,
-        startPos: new THREE.Vector3(),
-        startQuat: new THREE.Quaternion(),
-        targetQuat: new THREE.Quaternion(),
-        blendPos: new THREE.Vector3()
-    };
-    const cameraTour = {
-        index: 0,
-        phase: 'approach',
-        phaseStartedAt: 0,
-        approachMs: 6800,
-        orbitMs: 18000,
-        transferMs: 7200,
-        turnsPerPlanet: 1.05,
-        minDistance: 100,
-        maxDistance: 275,
-        distancePadding: 112,
-        baseHeight: 34,
-        angle: 0,
-        approachAngularSpeed: 0.17,
-        transferAngularSpeed: 0.12,
-        transferFromIndex: 0,
-        transferToIndex: 0,
-        transferArrivalScale: 1.03,
-        transferLookDelay: 0.24,
-        transferVerticalDelay: 0.32,
-        positionDamping: 2.6,
-        lookDamping: 1.9,
-        rotationDamping: 1.6,
-        verticalPosDamping: 1.45,
-        verticalLookDamping: 1.2,
-        minPitchDeg: -9,
-        maxPitchDeg: 14,
-        initialized: false
-    };
-    const cameraTourWork = {
-        targetPos: new THREE.Vector3(),
-        fromTargetPos: new THREE.Vector3(),
-        toTargetPos: new THREE.Vector3(),
-        desiredPos: new THREE.Vector3(),
-        fromDesiredPos: new THREE.Vector3(),
-        toDesiredPos: new THREE.Vector3(),
-        desiredLook: new THREE.Vector3(),
-        offset: new THREE.Vector3(),
-        fromOffset: new THREE.Vector3(),
-        toOffset: new THREE.Vector3(),
-        smoothedLook: new THREE.Vector3(),
-        smoothedPosY: 0,
-        smoothedLookY: 0,
-        virtualPos: new THREE.Vector3(),
-        lookMatrix: new THREE.Matrix4(),
-        desiredQuat: new THREE.Quaternion(),
-        virtualQuat: new THREE.Quaternion()
-    };
-    const marsTrails = [];
-    const marsTrailWork = {
-        curr: new THREE.Vector3(),
-        prev: new THREE.Vector3()
-    };
-    const marsBaseScale = 1;
-    
-    console.log("map range test:", mapRange(-5, -10, 0, 0, 1));
+    const toursController = createToursController({
+        threeLib: THREE,
+        state: {
+            cameraModeSwitch,
+            cameraView,
+            cameraTour,
+            cameraTourWork,
+            cameraTourOrder,
+            cameraTourTargets,
+            probeTour,
+            probeTourWork,
+            probeTourOrder,
+            probeTargets,
+            probeWork,
+            probeState,
+            equatorBasisWork
+        },
+        refs: tourRefs
+    });
+    const uiController = createUiController({
+        refs: tourRefs,
+        cameraView,
+        cameraModeSwitch,
+        scheduleNextModeSwitch: (nowMs) => toursController.scheduleNextModeSwitch(nowMs),
+        switchOrbitModeSmooth: (enableSonda, nowMs) => toursController.switchOrbitModeSmooth(enableSonda, nowMs)
+    });
+    const cosmicTextController = createCosmicTextController({
+        threeLib: THREE,
+        refs: cosmicTextRefs,
+        makeTextSpriteFn: (text) => makeTextSprite(text, THREE)
+    });
     
     function init() {
         // Camera setup
         camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 9000);
         camera.position.z = 800;
+        tourRefs.camera = camera;
+        cosmicTextRefs.camera = camera;
         
         // Scene setup
         scene = new THREE.Scene();
         window.scene = scene;
+        cosmicTextRefs.scene = scene;
         
         // Sun creation
         const sunTexture = new THREE.TextureLoader().load('./img/1k_sun.jpg');
@@ -437,24 +253,8 @@ function sceneInit() {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.domElement.style.display = 'block';
         document.body.appendChild(renderer.domElement);
-
-        fpsHud = document.createElement('div');
-        fpsHud.id = 'fps-hud';
-        fpsHud.textContent = 'FPS --';
-        fpsHud.style.position = 'fixed';
-        fpsHud.style.top = '10px';
-        fpsHud.style.right = '10px';
-        fpsHud.style.padding = '4px 8px';
-        fpsHud.style.fontFamily = 'monospace';
-        fpsHud.style.fontSize = '12px';
-        fpsHud.style.color = '#9ff0ff';
-        fpsHud.style.background = 'rgba(0, 0, 0, 0.55)';
-        fpsHud.style.border = '1px solid rgba(159, 240, 255, 0.55)';
-        fpsHud.style.borderRadius = '4px';
-        fpsHud.style.zIndex = '9999';
-        fpsHud.style.pointerEvents = 'none';
-        fpsHud.style.display = 'none';
-        document.body.appendChild(fpsHud);
+        tourRefs.renderer = renderer;
+        uiController.createFpsHud();
         
         // Add planets
         mars = addPlanet(sunObj, 18, 520, 0.003, 0.009, [1, 0.009, 0.008], "./img/1k_mars.jpg", {
@@ -531,10 +331,10 @@ function sceneInit() {
         });
 
         // Fresnel atmospheres (rim lighting look).
-        venusAtmosphere = createFresnelAtmosphere(16.9, 0xf3b77a, 3.2, 0.58);
+        venusAtmosphere = createFresnelAtmosphere(16.9, 0xf3b77a, 3.2, 0.58, THREE);
         venus.add(venusAtmosphere);
 
-        earthAtmosphere = createFresnelAtmosphere(17.6, 0x5faeff, 3.9, 0.52);
+        earthAtmosphere = createFresnelAtmosphere(17.6, 0x5faeff, 3.9, 0.52, THREE);
         earth.add(earthAtmosphere);
 
         jupiter = addPlanet(sunObj, 38, 860, 0.003, 0.006, [1, 0.006, -0.5], "./img/1k_jupiter.jpg", {
@@ -670,15 +470,10 @@ function sceneInit() {
         });
 
         probeTargets.push(mercury, venus, earth, mars, jupiter, saturn, uranus, neptune);
-        // Keep the probe route intact, but avoid inner planets for camera flyby.
+        // Camera tour avoids inner planets for longer cinematic flybys.
         cameraTourTargets.push(earth, mars, jupiter, saturn, uranus, neptune);
 
-        for (let i = 0; i < probeTargets.length; i++) {
-            probeTargets[i].getWorldPosition(probePathPoints[i]);
-        }
-
-        // Lightweight probe that navigates a spline through current planet positions.
-        probeCurve = new THREE.CatmullRomCurve3(probePathPoints, true, 'catmullrom', 0.38);
+        // Probe uses the same phased tour logic as camera, but across all planets.
         const probeGeometry = new THREE.SphereBufferGeometry(3.6, 12, 10);
         const probeMaterial = new THREE.MeshStandardMaterial({
             color: 0xa8f7ff,
@@ -689,8 +484,10 @@ function sceneInit() {
         });
         probeObj = new THREE.Mesh(probeGeometry, probeMaterial);
         probeObj.name = 'Probe';
-        probeObj.position.copy(probePathPoints[0]);
+        probeObj.position.set(0, 0, 0);
         scene.add(probeObj);
+        tourRefs.probeObj = probeObj;
+        startProbeTour(performance.now());
 
         for (let i = 0; i < 6; i++) {
             const trailGeo = new THREE.SphereBufferGeometry(1.8 - (i * 0.22), 8, 6);
@@ -739,15 +536,21 @@ function sceneInit() {
             probeParticleColors[(i * 3) + 2] = 1;
         }
 
+        tourRefs.probePathLine = null;
         if (SHOW_PROBE_PATH) {
-            const probePathGeometry = new THREE.BufferGeometry().setFromPoints(probeCurve.getPoints(90));
+            const probePathGeometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(),
+                new THREE.Vector3()
+            ]);
             const probePathMaterial = new THREE.LineBasicMaterial({
                 color: 0x65d9ff,
                 transparent: true,
                 opacity: 0.32
             });
             probePathLine = new THREE.LineLoop(probePathGeometry, probePathMaterial);
+            tourRefs.probePathLine = probePathLine;
             scene.add(probePathLine);
+            updateProbeRouteLine(performance.now(), true);
         }
         
         // Add moon to Mars
@@ -759,7 +562,7 @@ function sceneInit() {
             meanMotion: 0.021,
             phase: 2.3
         });
-        addParticles(mars);
+        addMarsParticles(mars, myParticles, marsParticleTextures, THREE, Partykals);
 
         marsAura = new THREE.PointLight(0xff4d1f, 1.1, 210);
         marsAura.position.set(0, 0, 0);
@@ -787,438 +590,54 @@ function sceneInit() {
 
         scheduleNextModeSwitch(performance.now());
     }
-
-    function getRandomModeSwitchDelayMs() {
-        return cameraModeSwitch.minSwitchMs + Math.random() * (cameraModeSwitch.maxSwitchMs - cameraModeSwitch.minSwitchMs);
-    }
-
     function scheduleNextModeSwitch(nowMs) {
-        const now = nowMs || performance.now();
-        cameraModeSwitch.nextSwitchAt = now + getRandomModeSwitchDelayMs();
+        toursController.scheduleNextModeSwitch(nowMs);
     }
 
     function switchOrbitModeSmooth(enableSonda, nowMs) {
-        const now = nowMs || performance.now();
-
-        if (cameraView.topDown) {
-            cameraView.topDown = false;
-        }
-
-        if (cameraView.planetTour === enableSonda) {
-            scheduleNextModeSwitch(now);
-            return;
-        }
-
-        cameraModeSwitch.active = true;
-        cameraModeSwitch.startedAt = now;
-        cameraModeSwitch.startPos.copy(camera.position);
-        cameraModeSwitch.startQuat.copy(camera.quaternion);
-
-        if (enableSonda) {
-            startPlanetTour(now);
-            cameraView.planetTour = true;
-        } else {
-            cameraView.planetTour = false;
-        }
-
-        scheduleNextModeSwitch(now);
+        toursController.switchOrbitModeSmooth(enableSonda, nowMs);
     }
 
     function onKeyDown(event) {
-        if (!event || !event.key) {
-            return;
-        }
-
-        const key = event.key.toLowerCase();
-
-        if (key === 'f') {
-            fpsVisible = !fpsVisible;
-            if (fpsHud) {
-                fpsHud.style.display = fpsVisible ? 'block' : 'none';
-            }
-        }
-
-        if (key === 't') {
-            cameraView.topDown = !cameraView.topDown;
-            if (cameraView.topDown) {
-                cameraView.planetTour = false;
-                cameraModeSwitch.active = false;
-            } else {
-                scheduleNextModeSwitch(performance.now());
-            }
-        }
-
-        if (key === 'o') {
-            switchOrbitModeSmooth(!cameraView.planetTour, performance.now());
-        }
+        uiController.onKeyDown(event);
     }
-    
+
     function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        uiController.onWindowResize();
     }
 
-    function startPlanetTour(nowMs) {
-        if (cameraTourTargets.length === 0) {
-            cameraView.planetTour = false;
-            return;
-        }
-
-        rebuildCameraTourOrder();
-
-        cameraTour.index = 0;
-        cameraTour.phase = 'approach';
-        cameraTour.phaseStartedAt = nowMs || performance.now();
-        cameraTour.angle = 0;
-        cameraTour.transferFromIndex = 0;
-        cameraTour.transferToIndex = cameraTourOrder.length > 1 ? 1 : 0;
-        cameraTour.initialized = false;
-        cameraTourWork.virtualPos.copy(camera.position);
-        cameraTourWork.virtualQuat.copy(camera.quaternion);
-        seedPlanetTourAngleForCurrentTarget();
+    function startProbeTour(nowMs) {
+        toursController.startProbeTour(nowMs);
     }
 
-    function rebuildCameraTourOrder(anchorTarget = null) {
-        cameraTourOrder.length = 0;
-
-        for (let i = 0; i < cameraTourTargets.length; i++) {
-            cameraTourOrder.push(cameraTourTargets[i]);
-        }
-
-        for (let i = cameraTourOrder.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            const temp = cameraTourOrder[i];
-            cameraTourOrder[i] = cameraTourOrder[j];
-            cameraTourOrder[j] = temp;
-        }
-
-        if (anchorTarget) {
-            const anchorIdx = cameraTourOrder.indexOf(anchorTarget);
-            if (anchorIdx > 0) {
-                const temp = cameraTourOrder[0];
-                cameraTourOrder[0] = cameraTourOrder[anchorIdx];
-                cameraTourOrder[anchorIdx] = temp;
-            }
-        }
+    function updateProbeRouteLine(nowMs, force = false) {
+        toursController.updateProbeRouteLine(nowMs, force);
     }
 
-    function getCameraTourTarget(index) {
-        if (cameraTourOrder.length === 0) {
-            rebuildCameraTourOrder();
-        }
-
-        if (cameraTourOrder.length === 0) {
-            return null;
-        }
-        return cameraTourOrder[index % cameraTourOrder.length] || null;
+    function updateProbeTour(now, deltaSec) {
+        toursController.updateProbeTour(now, deltaSec);
     }
 
-    function getTargetOrbitRadius(target) {
-        return (target && target.geometry && target.geometry.parameters && target.geometry.parameters.radius)
-            ? target.geometry.parameters.radius
-            : 18;
-    }
-
-    function seedPlanetTourAngleForCurrentTarget() {
-        if (!camera || cameraTourTargets.length === 0) {
-            return;
-        }
-
-        const target = getCameraTourTarget(cameraTour.index);
-        if (!target) {
-            return;
-        }
-
-        target.getWorldPosition(cameraTourWork.targetPos);
-        cameraTour.angle = Math.atan2(
-            camera.position.z - cameraTourWork.targetPos.z,
-            camera.position.x - cameraTourWork.targetPos.x
-        );
-    }
-
-    // Smooth camera flyby: approach a planet, orbit around it, then continue to the next one.
     function updatePlanetTourCamera(now, deltaSec) {
-        if (!camera || cameraTourTargets.length === 0) {
-            return;
-        }
-
-        if (cameraTourOrder.length === 0) {
-            rebuildCameraTourOrder();
-            if (cameraTourOrder.length === 0) {
-                return;
-            }
-        }
-
-        let phaseElapsed = now - cameraTour.phaseStartedAt;
-
-        if (cameraTour.phase === 'approach' && phaseElapsed >= cameraTour.approachMs) {
-            cameraTour.phase = 'orbit';
-            cameraTour.phaseStartedAt = now;
-            phaseElapsed = 0;
-        } else if (cameraTour.phase === 'orbit' && phaseElapsed >= cameraTour.orbitMs) {
-            if (cameraTourOrder.length <= 1) {
-                cameraTour.phaseStartedAt = now;
-                phaseElapsed = 0;
-            } else {
-                const currentTarget = getCameraTourTarget(cameraTour.index);
-                const reachedLoopEnd = cameraTour.index >= (cameraTourOrder.length - 1);
-
-                cameraTour.phase = 'transfer';
-                if (reachedLoopEnd && currentTarget) {
-                    rebuildCameraTourOrder(currentTarget);
-                    cameraTour.index = 0;
-                    cameraTour.transferFromIndex = 0;
-                    cameraTour.transferToIndex = 1;
-                } else {
-                    cameraTour.transferFromIndex = cameraTour.index;
-                    cameraTour.transferToIndex = cameraTour.index + 1;
-                }
-                cameraTour.phaseStartedAt = now;
-                phaseElapsed = 0;
-                cameraTourWork.fromDesiredPos.copy(camera.position);
-                if (cameraTour.initialized) {
-                    cameraTourWork.fromTargetPos.copy(cameraTourWork.smoothedLook);
-                } else {
-                    camera.getWorldDirection(cameraTourWork.fromOffset);
-                    cameraTourWork.fromTargetPos.copy(camera.position).addScaledVector(cameraTourWork.fromOffset, 140);
-                }
-            }
-        } else if (cameraTour.phase === 'transfer' && phaseElapsed >= cameraTour.transferMs) {
-            cameraTour.index = cameraTour.transferToIndex;
-            cameraTour.phase = 'orbit';
-            cameraTour.phaseStartedAt = now;
-            phaseElapsed = 0;
-            seedPlanetTourAngleForCurrentTarget();
-        }
-
-        const orbitAngularSpeed = (Math.PI * 2 * cameraTour.turnsPerPlanet) / (cameraTour.orbitMs * 0.001);
-        let angularSpeed = orbitAngularSpeed;
-        if (cameraTour.phase === 'approach') {
-            angularSpeed = cameraTour.approachAngularSpeed;
-        } else if (cameraTour.phase === 'transfer') {
-            angularSpeed = cameraTour.transferAngularSpeed;
-        }
-
-        cameraTour.angle += angularSpeed * deltaSec;
-        const orbitAngle = cameraTour.angle;
-
-        if (cameraTour.phase === 'transfer') {
-            const toTarget = getCameraTourTarget(cameraTour.transferToIndex);
-            if (!toTarget) {
-                return;
-            }
-
-            toTarget.getWorldPosition(cameraTourWork.toTargetPos);
-            const toRadius = getTargetOrbitRadius(toTarget);
-            const toDistance = THREE.MathUtils.clamp(
-                (toRadius * 4.4) + cameraTour.distancePadding,
-                cameraTour.minDistance,
-                cameraTour.maxDistance
-            );
-            const toHeight = (toRadius * 1.6) + cameraTour.baseHeight;
-            const transferProgress = THREE.MathUtils.clamp(phaseElapsed / cameraTour.transferMs, 0, 1);
-            const smoothTransfer = transferProgress * transferProgress * (3 - (2 * transferProgress));
-            const lookBlendRaw = THREE.MathUtils.clamp(
-                (smoothTransfer - cameraTour.transferLookDelay) / (1 - cameraTour.transferLookDelay),
-                0,
-                1
-            );
-            const smoothLookBlend = lookBlendRaw * lookBlendRaw * (3 - (2 * lookBlendRaw));
-            const verticalBlendRaw = THREE.MathUtils.clamp(
-                (smoothTransfer - cameraTour.transferVerticalDelay) / (1 - cameraTour.transferVerticalDelay),
-                0,
-                1
-            );
-            const smoothVerticalBlend = verticalBlendRaw * verticalBlendRaw * (3 - (2 * verticalBlendRaw));
-            const transferDistanceScale = THREE.MathUtils.lerp(1.42, cameraTour.transferArrivalScale, smoothTransfer);
-            const transferHeightScale = THREE.MathUtils.lerp(1.18, 1.03, smoothTransfer);
-            const transferAngleOffset = THREE.MathUtils.lerp(0.42, 0.08, smoothTransfer);
-
-            cameraTourWork.toOffset.set(
-                Math.cos(orbitAngle + transferAngleOffset) * toDistance * transferDistanceScale,
-                (toHeight * transferHeightScale) + (Math.sin((now * 0.001) + (cameraTour.transferToIndex * 0.33)) * 2.2),
-                Math.sin(orbitAngle + transferAngleOffset) * toDistance * 0.92 * transferDistanceScale
-            );
-            cameraTourWork.toDesiredPos.copy(cameraTourWork.toTargetPos).add(cameraTourWork.toOffset);
-
-            cameraTourWork.desiredPos.lerpVectors(cameraTourWork.fromDesiredPos, cameraTourWork.toDesiredPos, smoothTransfer);
-            cameraTourWork.desiredPos.y = THREE.MathUtils.lerp(
-                cameraTourWork.fromDesiredPos.y,
-                cameraTourWork.toDesiredPos.y,
-                smoothVerticalBlend
-            );
-            cameraTourWork.desiredLook.lerpVectors(cameraTourWork.fromTargetPos, cameraTourWork.toTargetPos, smoothLookBlend);
-            cameraTourWork.desiredLook.y += toRadius * 0.24 * smoothLookBlend;
-        } else {
-            const target = getCameraTourTarget(cameraTour.index);
-            if (!target) {
-                return;
-            }
-
-            target.getWorldPosition(cameraTourWork.targetPos);
-            const targetRadius = getTargetOrbitRadius(target);
-            const orbitDistance = THREE.MathUtils.clamp(
-                (targetRadius * 4.4) + cameraTour.distancePadding,
-                cameraTour.minDistance,
-                cameraTour.maxDistance
-            );
-            const orbitHeight = (targetRadius * 1.6) + cameraTour.baseHeight;
-
-            if (cameraTour.phase === 'approach') {
-                const progress = THREE.MathUtils.clamp(phaseElapsed / cameraTour.approachMs, 0, 1);
-                const smoothProgress = progress * progress * (3 - (2 * progress));
-                const approachDistance = THREE.MathUtils.lerp(orbitDistance * 2.1, orbitDistance, smoothProgress);
-                const approachHeight = THREE.MathUtils.lerp(orbitHeight * 1.65, orbitHeight, smoothProgress);
-
-                cameraTourWork.offset.set(
-                    Math.cos(orbitAngle) * approachDistance,
-                    approachHeight + (Math.sin((now * 0.0011) + (cameraTour.index * 0.37)) * 3.4),
-                    Math.sin(orbitAngle) * approachDistance * 0.92
-                );
-            } else {
-                const distancePulse = 1 + (Math.sin((now * 0.0015) + (cameraTour.index * 1.3)) * 0.08);
-
-                cameraTourWork.offset.set(
-                    Math.cos(orbitAngle) * orbitDistance * distancePulse,
-                    orbitHeight + (Math.sin((orbitAngle * 1.2) + (now * 0.0008)) * 5.4),
-                    Math.sin(orbitAngle) * orbitDistance * 0.88 * distancePulse
-                );
-            }
-
-            cameraTourWork.desiredPos.copy(cameraTourWork.targetPos).add(cameraTourWork.offset);
-            cameraTourWork.desiredLook.copy(cameraTourWork.targetPos);
-            if (cameraTour.phase !== 'orbit') {
-                cameraTourWork.desiredLook.y += targetRadius * 0.22;
-            }
-        }
-
-        if (!cameraTour.initialized) {
-            cameraTour.initialized = true;
-            cameraTourWork.smoothedLook.copy(cameraTourWork.desiredLook);
-            cameraTourWork.smoothedPosY = cameraTourWork.desiredPos.y;
-            cameraTourWork.smoothedLookY = cameraTourWork.desiredLook.y;
-        }
-
-        const verticalPosAlpha = THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.verticalPosDamping * deltaSec), 0.008, 0.12);
-        const verticalLookAlpha = THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.verticalLookDamping * deltaSec), 0.008, 0.1);
-        cameraTourWork.smoothedPosY += (cameraTourWork.desiredPos.y - cameraTourWork.smoothedPosY) * verticalPosAlpha;
-        cameraTourWork.smoothedLookY += (cameraTourWork.desiredLook.y - cameraTourWork.smoothedLookY) * verticalLookAlpha;
-        cameraTourWork.desiredPos.y = cameraTourWork.smoothedPosY;
-        cameraTourWork.desiredLook.y = cameraTourWork.smoothedLookY;
-
-        const lookDx = cameraTourWork.desiredLook.x - cameraTourWork.virtualPos.x;
-        const lookDz = cameraTourWork.desiredLook.z - cameraTourWork.virtualPos.z;
-        const planarLookDist = Math.sqrt((lookDx * lookDx) + (lookDz * lookDz));
-        if (planarLookDist > 0.001 && cameraTour.phase !== 'orbit') {
-            const minPitchTan = Math.tan(THREE.MathUtils.degToRad(cameraTour.minPitchDeg));
-            const maxPitchTan = Math.tan(THREE.MathUtils.degToRad(cameraTour.maxPitchDeg));
-            const desiredPitchTan = (cameraTourWork.desiredLook.y - cameraTourWork.virtualPos.y) / planarLookDist;
-            const clampedPitchTan = THREE.MathUtils.clamp(desiredPitchTan, minPitchTan, maxPitchTan);
-            cameraTourWork.desiredLook.y = cameraTourWork.virtualPos.y + (clampedPitchTan * planarLookDist);
-        }
-
-        const positionAlpha = THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.positionDamping * deltaSec), 0.01, 0.18);
-        const lookAlpha = cameraTour.phase === 'orbit'
-            ? THREE.MathUtils.clamp(1 - Math.exp(-(cameraTour.lookDamping + 1.9) * deltaSec), 0.03, 0.22)
-            : THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.lookDamping * deltaSec), 0.01, 0.12);
-        const rotationAlpha = cameraTour.phase === 'orbit'
-            ? THREE.MathUtils.clamp(1 - Math.exp(-(cameraTour.rotationDamping + 1.4) * deltaSec), 0.02, 0.18)
-            : THREE.MathUtils.clamp(1 - Math.exp(-cameraTour.rotationDamping * deltaSec), 0.01, 0.1);
-
-        cameraTourWork.virtualPos.lerp(cameraTourWork.desiredPos, positionAlpha);
-        cameraTourWork.smoothedLook.lerp(cameraTourWork.desiredLook, lookAlpha);
-
-        camera.up.set(0, 1, 0);
-        cameraTourWork.lookMatrix.lookAt(cameraTourWork.virtualPos, cameraTourWork.smoothedLook, camera.up);
-        cameraTourWork.desiredQuat.setFromRotationMatrix(cameraTourWork.lookMatrix);
-        cameraTourWork.virtualQuat.slerp(cameraTourWork.desiredQuat, rotationAlpha);
-        camera.position.copy(cameraTourWork.virtualPos);
-        camera.quaternion.copy(cameraTourWork.virtualQuat);
+        toursController.updatePlanetTourCamera(now, deltaSec);
     }
-    
-    // Cosmic text spawner (needs closure over scene + camera)
-    // Sprites live in camera space so they always stay visible as the camera orbits.
-    // camRelPos is in camera-local coordinates: +X right, +Y up, -Z forward.
+
     function spawnCosmicText(text, intervalSec) {
-        if (!text || !scene || !camera) return;
-        const nowMs = performance.now();
-        // Cooldown = 90% of the set's minimum interval, so at most one text per cycle
-        const cooldownMs = (intervalSec || 9) * 1000 * 0.9;
-        if (cosmicTextSprites.length > 0) {
-            const newest = cosmicTextSprites[cosmicTextSprites.length - 1];
-            if ((nowMs - newest.userData.spawnedAt) < cooldownMs) return;
-        }
-
-        const sprite = makeTextSprite(text);
-
-        // Spawn near the upper third of the screen (camera-local Y > 0).
-        const camRelPos = new THREE.Vector3(
-            (Math.random() - 0.5) * 38,   // left-right offset in cam space
-            82 + ((Math.random() - 0.5) * 16), // upper area, above previous band
-            -165                           // distance in front (camera looks along -Z)
-        );
-
-        // Place in world space for this frame
-        sprite.position.copy(camRelPos.clone().applyMatrix4(camera.matrixWorld));
-
-        const fadeInDur = 1200;
-        const totalDuration = (intervalSec || 9) * 1000;
-
-        sprite.userData = {
-            spawnedAt: nowMs,
-            totalDuration,
-            fadeInDur,
-            fadeOutDur: totalDuration - fadeInDur,  // lerp 1→0 over this span
-            camRelPos,
-            recedingSpeed: 62,            // units/sec along -Z (receding)
-            lateralDrift: new THREE.Vector2(
-                (Math.random() - 0.5) * 5,   // cam-space X drift/sec
-                2.8 + Math.random() * 1.8    // cam-space Y drift/sec (upward)
-            )
-        };
-
-        scene.add(sprite);
-        cosmicTextSprites.push(sprite);
+        cosmicTextController.spawn(text, intervalSec);
     }
 
     spawnCosmicTextFn = spawnCosmicText;
 
     // Animation variables
-    let level = 0;
-    let smoothedLevel = -75;
-    let lastAudioSampleAt = 0;
-    let lastAnimateNow = 0;
-    let probeReactiveDrive = 0;
     let frameCount = 0;
-    const reactiveTuning = {
-        sampleMs: 38,
-        attackFactor: 0.72,
-        releaseFactor: 0.2,
-        dbInMin: -62,
-        dbInMax: -16,
-        curvePower: 0.88,
-        transientDbMax: 8,
-        transientMaxBoost: 0.42,
-        emissiveBase: 0.66,
-        emissiveGain: 1.42,
-        scalePulse: 0.68,
-        trailOpacityBoost: 0.18
-    };
-    const probeColorBase = new THREE.Color(0xa8f7ff);
-    const probeColorHot = new THREE.Color(0xff2a2a);
-    const probeEmissiveBase = new THREE.Color(0x3aaed1);
-    const probeEmissiveHot = new THREE.Color(0xff1414);
-    const probeColorWork = new THREE.Color();
-    const probeEmissiveWork = new THREE.Color();
-    const cameraMotion = {
-        radius: 2040,
-        orbitSpeed: 0.00022,
-        radiusSwing: 160,
-        verticalBase: 220,
-        verticalAmp: 170,
-        verticalSpeed: 0.00031
-    };
+    const animationConfig = createAnimationConfig(THREE);
+    const { cameraMotion } = animationConfig;
+    const reactiveController = createReactiveController({
+        threeLib: THREE,
+        audioModule: audio,
+        mapRangeFn: mapRange,
+        config: animationConfig
+    });
 
     function animate(now) {
         if (typeof now !== 'number') {
@@ -1227,21 +646,7 @@ function sceneInit() {
 
         requestAnimationFrame(animate);
         frameCount++;
-        fpsState.frames++;
-
-        if (fpsState.lastSampleAt === 0) {
-            fpsState.lastSampleAt = now;
-        }
-
-        const fpsElapsed = now - fpsState.lastSampleAt;
-        if (fpsElapsed >= 250) {
-            const fpsValue = (fpsState.frames * 1000) / fpsElapsed;
-            fpsState.frames = 0;
-            fpsState.lastSampleAt = now;
-            if (fpsHud && fpsVisible) {
-                fpsHud.textContent = `FPS ${fpsValue.toFixed(1)}`;
-            }
-        }
+        uiController.updateFps(now, fpsState);
 
         if (!sceneEnabled) {
             return;
@@ -1310,31 +715,10 @@ function sceneInit() {
             }
         }
 
-        if (probeObj && probeCurve && probeTargets.length > 1) {
-            if ((now - probeState.lastPathUpdateAt) >= probeState.pathUpdateMs) {
-                for (let i = 0; i < probeTargets.length; i++) {
-                    probeTargets[i].getWorldPosition(probePathPoints[i]);
-                }
-                probeCurve.updateArcLengths();
-                if (probePathLine) {
-                    probePathLine.geometry.dispose();
-                    probePathLine.geometry = new THREE.BufferGeometry().setFromPoints(probeCurve.getPoints(90));
-                }
-                probeState.lastPathUpdateAt = now;
-            }
+        if (probeObj && probeTargets.length > 0) {
+            updateProbeTour(now, deltaSec);
 
-            probeState.t += probeState.speed * deltaSec;
-            if (probeState.t >= 1) {
-                probeState.t -= 1;
-            }
-
-            probeCurve.getPoint(probeState.t, probeWork.pos);
-            probeCurve.getTangent(probeState.t, probeWork.tan);
-            probeObj.position.copy(probeWork.pos);
-            probeWork.look.copy(probeWork.pos).add(probeWork.tan);
-            probeObj.lookAt(probeWork.look);
-
-            probeWork.tailOrigin.copy(probeWork.pos).addScaledVector(probeWork.tan, -9);
+            probeWork.tailOrigin.copy(probeObj.position).addScaledVector(probeWork.tan, -9);
             for (let i = 0; i < probeTrails.length; i++) {
                 const trail = probeTrails[i];
                 const target = (i === 0) ? probeWork.tailOrigin : probeWork.prevTail.copy(probeTrails[i - 1].position);
@@ -1345,6 +729,7 @@ function sceneInit() {
             if (probeParticleCloud) {
                 const positions = probeParticleCloud.geometry.attributes.position.array;
                 const colors = probeParticleCloud.geometry.attributes.color.array;
+                const probeColorWork = reactiveController.getProbeColorWork();
                 for (let i = 0; i < probeParticles.length; i++) {
                     const particle = probeParticles[i];
                     particle.life -= deltaSec;
@@ -1395,155 +780,27 @@ function sceneInit() {
         skyObj.rotation.x += 0.0006;
         skyObj.rotation.y += 0.0005;
         skyObj.rotation.z -= 0.0004;
+        reactiveController.update(now, {
+            sunLight,
+            ambientLight,
+            hemiLight,
+            sunGlow,
+            jupiter,
+            venusAtmosphere,
+            earthAtmosphere,
+            saturnRings,
+            camera,
+            probeObj,
+            probeParticleCloud,
+            probeTrails,
+            mars,
+            marsAura,
+            marsBaseScale,
+            marsTrails,
+            marsTrailWork
+        });
         
-        // Audio sampling kept only for comet brightness reaction.
-        if ((now - lastAudioSampleAt) > reactiveTuning.sampleMs) {
-            level = audio.getReactiveLevel();
-            lastAudioSampleAt = now;
-        }
-        const smoothingFactor = level > smoothedLevel
-            ? reactiveTuning.attackFactor
-            : reactiveTuning.releaseFactor;
-        smoothedLevel += (level - smoothedLevel) * smoothingFactor;
-
-        const normalizedLevel = THREE.MathUtils.clamp(
-            mapRange(smoothedLevel, reactiveTuning.dbInMin, reactiveTuning.dbInMax, 0, 1),
-            0,
-            1
-        );
-        const transientRise = Math.max(0, level - smoothedLevel);
-        const transientBoost = THREE.MathUtils.clamp(
-            mapRange(transientRise, 0, reactiveTuning.transientDbMax, 0, reactiveTuning.transientMaxBoost),
-            0,
-            reactiveTuning.transientMaxBoost
-        );
-        probeReactiveDrive = Math.min(2.0, Math.pow(normalizedLevel, reactiveTuning.curvePower) + transientBoost);
-
-        if (sunLight) {
-            sunLight.intensity = 1.5;
-            sunLight.distance = 2550;
-        }
-        if (ambientLight) {
-            ambientLight.intensity = 0.24;
-        }
-        if (hemiLight) {
-            hemiLight.intensity = 0.3;
-        }
-        if (sunGlow) {
-            const glowScale = 1.08 + (Math.sin(now * 0.001) * 0.02);
-            sunGlow.scale.setScalar(glowScale);
-            sunGlow.material.opacity = 0.06 + (Math.sin(now * 0.0014) * 0.012);
-            sunGlow.material.color.setHSL(0.1, 0.9, 0.58);
-        }
-
-        // Keep Jupiter scale stable (no audio modulation).
-        jupiter.scale.set(1.72, 1.72, 1.72);
-
-        if (venusAtmosphere) {
-            venusAtmosphere.rotation.y += 0.002;
-            venusAtmosphere.material.uniforms.uCameraPos.value.copy(camera.position);
-        }
-        if (earthAtmosphere) {
-            earthAtmosphere.rotation.y += 0.0012;
-            earthAtmosphere.material.uniforms.uCameraPos.value.copy(camera.position);
-        }
-        if (saturnRings) {
-            saturnRings.rotation.z += 0.00035;
-        }
-
-        // Atmospheres use subtle temporal shimmer only.
-        if (venusAtmosphere) {
-            const venusShimmer = Math.sin(now * 0.0017) * 0.018;
-            venusAtmosphere.material.uniforms.uOpacity.value = 0.52 + venusShimmer;
-        }
-        if (earthAtmosphere) {
-            const earthShimmer = Math.sin((now * 0.0014) + 1.1) * 0.015;
-            earthAtmosphere.material.uniforms.uOpacity.value = 0.48 + earthShimmer;
-        }
-
-        if (probeObj) {
-            const probeScale = 1 + (probeReactiveDrive * reactiveTuning.scalePulse);
-            const colorMix = THREE.MathUtils.clamp(probeReactiveDrive / 1.4, 0, 1);
-            probeColorWork.copy(probeColorBase).lerp(probeColorHot, colorMix);
-            probeEmissiveWork.copy(probeEmissiveBase).lerp(probeEmissiveHot, colorMix);
-
-            probeObj.scale.setScalar(probeScale);
-            probeObj.material.color.copy(probeColorWork);
-            probeObj.material.emissive.copy(probeEmissiveWork);
-            probeObj.material.emissiveIntensity = reactiveTuning.emissiveBase + (probeReactiveDrive * reactiveTuning.emissiveGain);
-
-            if (probeParticleCloud && probeParticleCloud.material) {
-                probeParticleCloud.material.opacity = 0.45 + (colorMix * 0.3);
-            }
-        }
-
-        for (let i = 0; i < probeTrails.length; i++) {
-            const trail = probeTrails[i];
-            const baseOpacity = 0.13 - (i * 0.018);
-            trail.material.opacity = baseOpacity + (probeReactiveDrive * reactiveTuning.trailOpacityBoost * (1 - (i * 0.1)));
-        }
-
-        // Mars motion stays animated but independent from audio.
-        const marsPulse = 1.02 + (Math.sin(now * 0.0028) * 0.07);
-        mars.scale.set(
-            (marsBaseScale * marsPulse) + (Math.sin(now * 0.0042) * 0.028),
-            (marsBaseScale * marsPulse) + (Math.sin((now * 0.0042) + 1.4) * 0.02),
-            (marsBaseScale * marsPulse) + (Math.sin((now * 0.0042) + 2.2) * 0.024)
-        );
-        if (marsAura) {
-            const auraPulse = 1.06 + (Math.sin((now * 0.0016) + 0.8) * 0.22);
-            marsAura.intensity = auraPulse;
-            marsAura.distance = 140 + (auraPulse * 58);
-            marsAura.color.setHSL(0.03 + (Math.sin(now * 0.0011) * 0.02), 0.95, 0.52);
-        }
-
-        // World-space trail follow chain for a comet-like streak.
-        mars.getWorldPosition(marsTrailWork.curr);
-        for (let i = 0; i < marsTrails.length; i++) {
-            const trail = marsTrails[i];
-            const target = (i === 0) ? marsTrailWork.curr : marsTrailWork.prev.copy(marsTrails[i - 1].position);
-            const lerpAlpha = 0.25 - (i * 0.025);
-            trail.position.lerp(target, Math.max(0.06, lerpAlpha));
-            const trailPulse = 1 + (Math.sin((now * 0.0022) + (i * 0.45)) * 0.08);
-            const localPulse = trailPulse * (1 - (i * 0.09));
-            trail.scale.setScalar(localPulse);
-            trail.material.opacity = (0.09 - (i * 0.015)) + (trailPulse * 0.06);
-            trail.material.color.setHSL(0.045 - (i * 0.005), 0.95, 0.52);
-        }
-        
-        // Update cosmic text sprites (camera-space tracking + recede)
-        if (cosmicTextSprites.length > 0) {
-            const textDelta = lastAnimateNow > 0 ? Math.min(0.1, (now - lastAnimateNow) * 0.001) : 0.016;
-            for (let i = cosmicTextSprites.length - 1; i >= 0; i--) {
-                const s = cosmicTextSprites[i];
-                const ud = s.userData;
-                const age = now - ud.spawnedAt;
-                if (age >= ud.totalDuration) {
-                    scene.remove(s);
-                    if (s.material.map) s.material.map.dispose();
-                    s.material.dispose();
-                    cosmicTextSprites.splice(i, 1);
-                    continue;
-                }
-                // Advance in camera space: recede along -Z, drift in X/Y
-                ud.camRelPos.z -= ud.recedingSpeed * textDelta;
-                ud.camRelPos.x += ud.lateralDrift.x * textDelta;
-                ud.camRelPos.y += ud.lateralDrift.y * textDelta;
-                // Convert camera-local position to world space each frame
-                s.position.copy(ud.camRelPos.clone().applyMatrix4(camera.matrixWorld));
-
-                let opacity;
-                if (age < ud.fadeInDur) {
-                    // Quick fade-in
-                    opacity = age / ud.fadeInDur;
-                } else {
-                    // Continuous lerp 1 → 0 over fadeOutDur
-                    opacity = 1.0 - (age - ud.fadeInDur) / ud.fadeOutDur;
-                }
-                s.material.opacity = Math.max(0, opacity) * 0.90;
-            }
-        }
-        lastAnimateNow = now;
+        cosmicTextController.update(now);
 
         renderer.render(scene, camera);
     }

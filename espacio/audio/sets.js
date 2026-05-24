@@ -26,7 +26,7 @@ var sets = {
       volume: -4,
       delay: -16,
       reverb: 5,
-      eq: { high: 5, mid: 0, low: -30 }
+      eq: { high: 5, mid: 0, low: -10}
 
     },
     files: [
