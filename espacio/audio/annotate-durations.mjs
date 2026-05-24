@@ -2,13 +2,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import vm from "node:vm";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SETS_FILE = path.join(__dirname, "sets.js");
+const SCENE_DEFINITION_FILE = path.join(__dirname, "..", "scene.definition.json");
 
 const args = new Set(process.argv.slice(2));
 const setArg = process.argv.find((arg) => arg.startsWith("--set="));
@@ -26,21 +25,31 @@ const ffmpegBin = ffmpegArg
   ? ffmpegArg.slice("--ffmpeg=".length).trim()
   : (process.env.FFMPEG_BIN || "ffmpeg");
 
-function loadSetsFromSource(source) {
-  const sandbox = {};
-  vm.createContext(sandbox);
-  vm.runInContext(`${source}\n;this.__sets = sets;`, sandbox, { filename: "sets.js" });
+async function loadSceneDefinition() {
+  const raw = await fs.readFile(SCENE_DEFINITION_FILE, "utf8");
+  const parsed = JSON.parse(raw);
 
-  if (!sandbox.__sets || typeof sandbox.__sets !== "object") {
-    throw new Error("No se pudo cargar el objeto sets desde sets.js");
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("scene.definition.json no contiene un objeto valido");
   }
 
-  return sandbox.__sets;
+  if (!parsed.audioSetLibrary || typeof parsed.audioSetLibrary !== "object") {
+    throw new Error("scene.definition.json no contiene audioSetLibrary");
+  }
+
+  return parsed;
 }
 
-function formatDuration(seconds) {
-  const clampedPrecision = Number.isInteger(precision) ? Math.min(Math.max(precision, 0), 6) : 3;
-  return Number(seconds.toFixed(clampedPrecision)).toString();
+function clampPrecision(value) {
+  if (!Number.isInteger(value)) {
+    return 3;
+  }
+
+  return Math.min(Math.max(value, 0), 6);
+}
+
+function roundDuration(seconds) {
+  return Number(seconds.toFixed(clampPrecision(precision)));
 }
 
 function parseDurationClock(text) {
@@ -103,14 +112,14 @@ function probeDurationSeconds(absoluteAudioPath) {
   throw new Error(`No se pudo extraer duracion para ${absoluteAudioPath} con ffprobe/ffmpeg`);
 }
 
-function collectAudioEntries(setsObject) {
-  const setNames = selectedSetName ? [selectedSetName] : Object.keys(setsObject);
+function collectAudioEntries(audioSetLibrary) {
+  const setNames = selectedSetName ? [selectedSetName] : Object.keys(audioSetLibrary);
   const entries = [];
 
   for (const setName of setNames) {
-    const setDef = setsObject[setName];
+    const setDef = audioSetLibrary[setName];
     if (!setDef) {
-      throw new Error(`No existe el set '${setName}' en sets.js`);
+      throw new Error(`No existe el set '${setName}' en scene.definition.json`);
     }
 
     if (!Array.isArray(setDef.files)) {
@@ -134,52 +143,44 @@ function collectAudioEntries(setsObject) {
   return entries;
 }
 
-function injectDurations(source, targetPaths, durationByPath) {
-  const objectWithPathRegex = /\{([^{}]*\bpath\s*:\s*"([^"]+)"[^{}]*)\}/g;
+function injectDurations(sceneDefinition, targetPaths, durationByPath) {
+  const library = sceneDefinition.audioSetLibrary;
+  const setNames = selectedSetName ? [selectedSetName] : Object.keys(library);
   let touched = 0;
 
-  const updated = source.replace(objectWithPathRegex, (fullMatch, objectBody, matchedPath) => {
-    const audioPath = matchedPath.trim();
-    if (!targetPaths.has(audioPath) || !durationByPath.has(audioPath)) {
-      return fullMatch;
+  for (const setName of setNames) {
+    const setDef = library[setName];
+    if (!setDef || !Array.isArray(setDef.files)) {
+      continue;
     }
 
-    const durationLiteral = formatDuration(durationByPath.get(audioPath));
-    let nextBody = objectBody;
+    for (const fileDef of setDef.files) {
+      if (!fileDef || typeof fileDef.path !== "string") {
+        continue;
+      }
 
-    if (/\bdurationSec\s*:/.test(nextBody)) {
-      nextBody = nextBody.replace(/\bdurationSec\s*:\s*[-+]?\d*\.?\d+/, `durationSec: ${durationLiteral}`);
-    } else {
-      if (/(\bpath\s*:\s*"[^"]+"\s*,)/.test(nextBody)) {
-        nextBody = nextBody.replace(
-          /(\bpath\s*:\s*"[^"]+"\s*,)/,
-          `$1 durationSec: ${durationLiteral},`
-        );
-      } else {
-        nextBody = nextBody.replace(
-          /(\bpath\s*:\s*"[^"]+")/,
-          `$1, durationSec: ${durationLiteral}`
-        );
+      const relativePath = fileDef.path.trim();
+      if (!targetPaths.has(relativePath) || !durationByPath.has(relativePath)) {
+        continue;
+      }
+
+      const durationSec = roundDuration(durationByPath.get(relativePath));
+      if (fileDef.durationSec !== durationSec) {
+        fileDef.durationSec = durationSec;
+        touched += 1;
       }
     }
+  }
 
-    if (nextBody !== objectBody) {
-      touched += 1;
-    }
-
-    return `{${nextBody}}`;
-  });
-
-  return { updated, touched };
+  return touched;
 }
 
 async function main() {
   console.log(`Usando ffprobe: ${ffprobeBin}`);
   console.log(`Usando ffmpeg : ${ffmpegBin}`);
 
-  let source = await fs.readFile(SETS_FILE, "utf8");
-  const setsObject = loadSetsFromSource(source);
-  const entries = collectAudioEntries(setsObject);
+  const sceneDefinition = await loadSceneDefinition();
+  const entries = collectAudioEntries(sceneDefinition.audioSetLibrary);
 
   if (entries.length === 0) {
     throw new Error("No se encontraron archivos de audio para procesar");
@@ -199,28 +200,28 @@ async function main() {
 
     const seconds = probeDurationSeconds(absolutePath);
     durationByPath.set(relativePath, seconds);
-    console.log(`Duracion ${relativePath}: ${formatDuration(seconds)}s`);
+    console.log(`Duracion ${relativePath}: ${roundDuration(seconds)}s`);
   }
 
   const targetPaths = new Set(uniquePaths);
-  const { updated, touched } = injectDurations(source, targetPaths, durationByPath);
+  const touched = injectDurations(sceneDefinition, targetPaths, durationByPath);
 
   if (touched === 0) {
-    console.log("Sin cambios: no se inyecto durationSec en ningun item");
+    console.log("Sin cambios: no se actualizo durationSec en ningun item");
     return;
   }
 
+  const serialized = `${JSON.stringify(sceneDefinition, null, 2)}\n`;
+
   if (write) {
-    await fs.writeFile(SETS_FILE, updated, "utf8");
-    console.log(`Listo: sets.js actualizado (${touched} items)`);
+    await fs.writeFile(SCENE_DEFINITION_FILE, serialized, "utf8");
+    console.log(`Listo: scene.definition.json actualizado (${touched} items)`);
   } else {
-    const previewFile = path.join(__dirname, "sets.durations.preview.js");
-    await fs.writeFile(previewFile, updated, "utf8");
+    const previewFile = path.join(__dirname, "scene.definition.durations.preview.json");
+    await fs.writeFile(previewFile, serialized, "utf8");
     console.log(`Preview generado: ${previewFile}`);
     console.log("Para aplicar cambios ejecuta: node espacio/audio/annotate-durations.mjs --write");
   }
-
-  source = updated;
 }
 
 main().catch((error) => {

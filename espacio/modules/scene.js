@@ -110,9 +110,327 @@ function addPlanet(parent, radius, distance, rotationSpeed, translationSpeed, in
     return mesh;
 }
 
+const DEFAULT_SCENE3D_CONFIG = {
+    camera: {
+        fov: 70,
+        near: 1,
+        far: 9000,
+        position: { x: 0, y: 0, z: 800 }
+    },
+    sun: {
+        radius: 100,
+        segments: { width: 64, height: 48 },
+        texturePath: './img/1k_sun.jpg',
+        rotationSpeedY: 0.0007,
+        glow: {
+            radius: 114,
+            segments: { width: 32, height: 22 },
+            color: '#ffbb66',
+            opacity: 0.06
+        },
+        light: {
+            color: '#ffb84d',
+            intensity: 1.15,
+            distance: 2400
+        }
+    },
+    lights: {
+        ambient: {
+            color: '#2f3c58',
+            intensity: 0.26
+        },
+        hemisphere: {
+            skyColor: '#6f8fc5',
+            groundColor: '#1a0f08',
+            intensity: 0.34,
+            position: { x: 0, y: 1, z: 0 }
+        }
+    },
+    sky: {
+        radius: 5000,
+        segments: { width: 48, height: 28 },
+        texturePath: './img/2k_stars_milky_way.jpg',
+        rotationSpeed: { x: 0.0006, y: 0.0005, z: -0.0004 }
+    },
+    renderer: {
+        antialias: false,
+        powerPreference: 'high-performance',
+        maxPixelRatio: 1.5
+    },
+    bodies: [
+        {
+            key: 'mars',
+            parent: 'sun',
+            radius: 18,
+            distance: 520,
+            rotationSpeed: 0.003,
+            translationSpeed: 0.009,
+            texturePath: './img/1k_mars.jpg',
+            orbit: { semiMajorAxis: 520, eccentricity: 0.093, inclinationDeg: 1.85, longitudeDeg: 49.5, meanMotion: 0.0052, phase: 1.2 }
+        },
+        {
+            key: 'mercury',
+            parent: 'sun',
+            radius: 9,
+            distance: 150,
+            rotationSpeed: 0.0085,
+            translationSpeed: 0.011,
+            texturePath: './img/2k_mercury.jpg',
+            orbit: { semiMajorAxis: 150, eccentricity: 0.205, inclinationDeg: 7, longitudeDeg: 48.3, meanMotion: 0.36, phase: 0.7 }
+        },
+        {
+            key: 'venus',
+            parent: 'sun',
+            radius: 15,
+            distance: 220,
+            rotationSpeed: 0.006,
+            translationSpeed: 0.007,
+            texturePath: './img/1k_venus_surface.jpg',
+            orbit: { semiMajorAxis: 220, eccentricity: 0.01, inclinationDeg: 3.4, longitudeDeg: 76.7, meanMotion: 0.279, phase: 3.4 },
+            atmosphere: { radius: 16.9, color: '#f3b77a', power: 3.2, intensity: 0.58 }
+        },
+        {
+            key: 'earth',
+            parent: 'sun',
+            radius: 16,
+            distance: 390,
+            rotationSpeed: 0.0055,
+            translationSpeed: 0.0086,
+            texturePath: './img/earth_day_4096.jpg',
+            orbit: { semiMajorAxis: 390, eccentricity: 0.0167, inclinationDeg: 0.4, longitudeDeg: 11.3, meanMotion: 0.0062, phase: 2.15 },
+            atmosphere: { radius: 17.6, color: '#5faeff', power: 3.9, intensity: 0.52 }
+        },
+        {
+            key: 'earthMoon',
+            parent: 'earth',
+            mode: 'displacement',
+            radius: 4.2,
+            distance: 34,
+            rotationSpeed: 0.006,
+            translationSpeed: 0.028,
+            texturePath: './img/pv_moon_213_moon.jpg',
+            displacementMapPath: './img/moon_ldem_3_8bit.jpg',
+            displacementScale: 0.32,
+            shininess: 5,
+            segmentBoost: { width: 8, height: 6 },
+            orbit: { semiMajorAxis: 34, eccentricity: 0.055, inclinationDeg: 18, longitudeDeg: 28, meanMotion: 0.028, phase: 0.9 }
+        },
+        {
+            key: 'jupiter',
+            parent: 'sun',
+            radius: 38,
+            distance: 860,
+            rotationSpeed: 0.003,
+            translationSpeed: 0.006,
+            texturePath: './img/1k_jupiter.jpg',
+            orbit: { semiMajorAxis: 860, eccentricity: 0.049, inclinationDeg: 1.3, longitudeDeg: 100.5, meanMotion: 0.0027, phase: 5 }
+        },
+        {
+            key: 'saturn',
+            parent: 'sun',
+            radius: 31,
+            distance: 1200,
+            rotationSpeed: 0.0024,
+            translationSpeed: 0.0048,
+            texturePath: './img/2k_saturn.jpg',
+            orbit: { semiMajorAxis: 1200, eccentricity: 0.056, inclinationDeg: 2.5, longitudeDeg: 113.7, meanMotion: 0.0032, phase: 0.6 },
+            rings: {
+                innerRadius: 46,
+                outerRadius: 74,
+                segments: 96,
+                texturePath: './img/2k_saturn_ring_alpha.png',
+                opacity: 0.86,
+                tiltDeg: 80
+            }
+        },
+        {
+            key: 'uranus',
+            parent: 'sun',
+            radius: 28,
+            distance: 1450,
+            rotationSpeed: 0.0024,
+            translationSpeed: 0.0034,
+            texturePath: './img/2k_uranus.jpg',
+            orbit: { semiMajorAxis: 1450, eccentricity: 0.047, inclinationDeg: 0.8, longitudeDeg: 74, meanMotion: 0.0042, phase: 1.9 }
+        },
+        {
+            key: 'neptune',
+            parent: 'sun',
+            radius: 27,
+            distance: 1780,
+            rotationSpeed: 0.0022,
+            translationSpeed: 0.003,
+            texturePath: './img/2k_neptune.jpg',
+            orbit: { semiMajorAxis: 1780, eccentricity: 0.009, inclinationDeg: 1.8, longitudeDeg: 131.8, meanMotion: 0.0035, phase: 4.2 }
+        },
+        {
+            key: 'phobos',
+            parent: 'mars',
+            radius: 2.4,
+            distance: 28,
+            rotationSpeed: 0.012,
+            translationSpeed: 0.055,
+            texturePath: './img/pv_moon_215_phobos.jpg',
+            orbit: { semiMajorAxis: 28, eccentricity: 0.018, inclinationDeg: 24, longitudeDeg: 5, meanMotion: 0.055, phase: 0.3 }
+        },
+        {
+            key: 'deimos',
+            parent: 'mars',
+            radius: 1.8,
+            distance: 40,
+            rotationSpeed: 0.01,
+            translationSpeed: 0.038,
+            texturePath: './img/pv_moon_201_deimos.jpg',
+            orbit: { semiMajorAxis: 40, eccentricity: 0.012, inclinationDeg: 34, longitudeDeg: 88, meanMotion: 0.038, phase: 2.1 }
+        },
+        {
+            key: 'io',
+            parent: 'jupiter',
+            radius: 4.4,
+            distance: 66,
+            rotationSpeed: 0.01,
+            translationSpeed: 0.05,
+            texturePath: './img/pv_moon_209_io.jpg',
+            orbit: { semiMajorAxis: 66, eccentricity: 0.004, inclinationDeg: 12, longitudeDeg: 140, meanMotion: 0.05, phase: 1.4 }
+        },
+        {
+            key: 'europa',
+            parent: 'jupiter',
+            radius: 4.1,
+            distance: 78,
+            rotationSpeed: 0.009,
+            translationSpeed: 0.041,
+            texturePath: './img/pv_moon_205_europa.jpg',
+            orbit: { semiMajorAxis: 78, eccentricity: 0.009, inclinationDeg: 26, longitudeDeg: 220, meanMotion: 0.041, phase: 3.1 }
+        },
+        {
+            key: 'ganymede',
+            parent: 'jupiter',
+            radius: 5,
+            distance: 93,
+            rotationSpeed: 0.008,
+            translationSpeed: 0.032,
+            texturePath: './img/pv_moon_206_ganymede.jpg',
+            orbit: { semiMajorAxis: 93, eccentricity: 0.002, inclinationDeg: 37, longitudeDeg: 300, meanMotion: 0.032, phase: 5.5 }
+        },
+        {
+            key: 'titan',
+            parent: 'saturn',
+            radius: 4.8,
+            distance: 88,
+            rotationSpeed: 0.009,
+            translationSpeed: 0.023,
+            texturePath: './img/pv_moon_221_titan.jpg',
+            orbit: { semiMajorAxis: 88, eccentricity: 0.029, inclinationDeg: 21, longitudeDeg: 170, meanMotion: 0.023, phase: 0.8 }
+        },
+        {
+            key: 'triton',
+            parent: 'neptune',
+            radius: 4.2,
+            distance: 72,
+            rotationSpeed: 0.009,
+            translationSpeed: 0.02,
+            texturePath: './img/pv_moon_223_triton.jpg',
+            orbit: { semiMajorAxis: 72, eccentricity: 0, inclinationDeg: 140, longitudeDeg: 250, meanMotion: 0.02, phase: 4 }
+        },
+        {
+            key: 'marsMoonClassic',
+            parent: 'mars',
+            radius: 4,
+            distance: 42,
+            rotationSpeed: 0.008,
+            translationSpeed: 0.005,
+            texturePath: './img/1k_moon.jpg',
+            orbit: { semiMajorAxis: 42, eccentricity: 0.035, inclinationDeg: 5.1, longitudeDeg: 12, meanMotion: 0.021, phase: 2.3 }
+        }
+    ],
+    probeTargetKeys: ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'],
+    cameraTourTargetKeys: ['earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'],
+    marsEffects: {
+        aura: {
+            color: '#ff4d1f',
+            intensity: 1.1,
+            distance: 210
+        },
+        trails: {
+            count: 4,
+            baseRadius: 3.6,
+            radiusStep: 0.5,
+            color: '#ff5a2a',
+            baseOpacity: 0.14,
+            opacityStep: 0.02
+        }
+    }
+};
+
+function cloneConfigValue(value) {
+    if (typeof structuredClone === 'function') {
+        return structuredClone(value);
+    }
+    return JSON.parse(JSON.stringify(value));
+}
+
+function mergeSceneConfig(baseValue, overrideValue) {
+    if (Array.isArray(baseValue)) {
+        return Array.isArray(overrideValue) ? cloneConfigValue(overrideValue) : cloneConfigValue(baseValue);
+    }
+
+    if (!baseValue || typeof baseValue !== 'object') {
+        return (overrideValue === undefined) ? baseValue : overrideValue;
+    }
+
+    const result = { ...baseValue };
+    if (!overrideValue || typeof overrideValue !== 'object' || Array.isArray(overrideValue)) {
+        return result;
+    }
+
+    Object.keys(overrideValue).forEach((key) => {
+        const overrideField = overrideValue[key];
+        const baseField = baseValue[key];
+
+        if (Array.isArray(overrideField)) {
+            result[key] = cloneConfigValue(overrideField);
+            return;
+        }
+
+        if (overrideField && typeof overrideField === 'object' && baseField && typeof baseField === 'object' && !Array.isArray(baseField)) {
+            result[key] = mergeSceneConfig(baseField, overrideField);
+            return;
+        }
+
+        result[key] = overrideField;
+    });
+
+    return result;
+}
+
+function buildScene3dConfig(scene3dConfig) {
+    return mergeSceneConfig(DEFAULT_SCENE3D_CONFIG, scene3dConfig || {});
+}
+
+function toOrbitProfile(orbitConfig, distance, translationSpeed) {
+    const orbit = orbitConfig || {};
+    const inclination = (typeof orbit.inclination === 'number')
+        ? orbit.inclination
+        : THREE.MathUtils.degToRad(Number(orbit.inclinationDeg || 0));
+    const longitude = (typeof orbit.longitude === 'number')
+        ? orbit.longitude
+        : THREE.MathUtils.degToRad(Number(orbit.longitudeDeg || 0));
+
+    return {
+        semiMajorAxis: (typeof orbit.semiMajorAxis === 'number') ? orbit.semiMajorAxis : distance,
+        eccentricity: (typeof orbit.eccentricity === 'number') ? orbit.eccentricity : 0,
+        inclination,
+        longitude,
+        meanMotion: (typeof orbit.meanMotion === 'number') ? orbit.meanMotion : translationSpeed,
+        phase: (typeof orbit.phase === 'number') ? orbit.phase : 0
+    };
+}
+
 
 // Main scene initialization function
-function sceneInit() {
+function sceneInit(scene3dConfig) {
+    const runtimeSceneConfig = buildScene3dConfig(scene3dConfig);
     audio.init();
     
     let camera, scene, renderer;
@@ -194,9 +512,25 @@ function sceneInit() {
     });
     
     function init() {
+        const cameraCfg = runtimeSceneConfig.camera || {};
+        const sunCfg = runtimeSceneConfig.sun || {};
+        const skyCfg = runtimeSceneConfig.sky || {};
+        const rendererCfg = runtimeSceneConfig.renderer || {};
+        const lightsCfg = runtimeSceneConfig.lights || {};
+        const bodyMap = new Map();
+
         // Camera setup
-        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 9000);
-        camera.position.z = 800;
+        camera = new THREE.PerspectiveCamera(
+            Number(cameraCfg.fov || 70),
+            window.innerWidth / window.innerHeight,
+            Number(cameraCfg.near || 1),
+            Number(cameraCfg.far || 9000)
+        );
+        camera.position.set(
+            Number((cameraCfg.position && cameraCfg.position.x) || 0),
+            Number((cameraCfg.position && cameraCfg.position.y) || 0),
+            Number((cameraCfg.position && cameraCfg.position.z) || 800)
+        );
         tourRefs.camera = camera;
         cosmicTextRefs.camera = camera;
         
@@ -206,19 +540,28 @@ function sceneInit() {
         cosmicTextRefs.scene = scene;
         
         // Sun creation
-        const sunTexture = new THREE.TextureLoader().load('./img/1k_sun.jpg');
-        const sunGeometry = new THREE.SphereBufferGeometry(100, 64, 48);
+        const sunTexture = new THREE.TextureLoader().load(sunCfg.texturePath || './img/1k_sun.jpg');
+        const sunGeometry = new THREE.SphereBufferGeometry(
+            Number(sunCfg.radius || 100),
+            Number((sunCfg.segments && sunCfg.segments.width) || 64),
+            Number((sunCfg.segments && sunCfg.segments.height) || 48)
+        );
         const sunMaterial = new THREE.MeshBasicMaterial({ map: sunTexture });
         sunObj = new THREE.Mesh(sunGeometry, sunMaterial);
         sunObj.name = "Sol";
         scene.add(sunObj);
 
         // Add a soft additive shell and point light so the sun can react to audio energy.
-        const sunGlowGeometry = new THREE.SphereBufferGeometry(114, 32, 22);
+        const sunGlowCfg = sunCfg.glow || {};
+        const sunGlowGeometry = new THREE.SphereBufferGeometry(
+            Number(sunGlowCfg.radius || 114),
+            Number((sunGlowCfg.segments && sunGlowCfg.segments.width) || 32),
+            Number((sunGlowCfg.segments && sunGlowCfg.segments.height) || 22)
+        );
         const sunGlowMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffbb66,
+            color: sunGlowCfg.color || '#ffbb66',
             transparent: true,
-            opacity: 0.06,
+            opacity: Number(sunGlowCfg.opacity || 0.06),
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             side: THREE.FrontSide
@@ -227,251 +570,226 @@ function sceneInit() {
         sunGlow.name = "SunGlow";
         sunObj.add(sunGlow);
 
-        sunLight = new THREE.PointLight(0xffb84d, 1.15, 2400);
+        const sunLightCfg = sunCfg.light || {};
+        sunLight = new THREE.PointLight(
+            sunLightCfg.color || '#ffb84d',
+            Number(sunLightCfg.intensity || 1.15),
+            Number(sunLightCfg.distance || 2400)
+        );
         sunLight.position.set(0, 0, 0);
         sunObj.add(sunLight);
 
         // Fill lights to avoid flat shading on the night side and improve depth.
-        ambientLight = new THREE.AmbientLight(0x2f3c58, 0.26);
+        const ambientCfg = lightsCfg.ambient || {};
+        ambientLight = new THREE.AmbientLight(
+            ambientCfg.color || '#2f3c58',
+            Number(ambientCfg.intensity || 0.26)
+        );
         scene.add(ambientLight);
 
-        hemiLight = new THREE.HemisphereLight(0x6f8fc5, 0x1a0f08, 0.34);
-        hemiLight.position.set(0, 1, 0);
+        const hemiCfg = lightsCfg.hemisphere || {};
+        hemiLight = new THREE.HemisphereLight(
+            hemiCfg.skyColor || '#6f8fc5',
+            hemiCfg.groundColor || '#1a0f08',
+            Number(hemiCfg.intensity || 0.34)
+        );
+        hemiLight.position.set(
+            Number((hemiCfg.position && hemiCfg.position.x) || 0),
+            Number((hemiCfg.position && hemiCfg.position.y) || 1),
+            Number((hemiCfg.position && hemiCfg.position.z) || 0)
+        );
         scene.add(hemiLight);
         
         // Sky/background creation
-        const skyTexture = new THREE.TextureLoader().load('./img/2k_stars_milky_way.jpg');
-        const skyGeometry = new THREE.SphereBufferGeometry(5000, 48, 28);
+        const skyTexture = new THREE.TextureLoader().load(skyCfg.texturePath || './img/2k_stars_milky_way.jpg');
+        const skyGeometry = new THREE.SphereBufferGeometry(
+            Number(skyCfg.radius || 5000),
+            Number((skyCfg.segments && skyCfg.segments.width) || 48),
+            Number((skyCfg.segments && skyCfg.segments.height) || 28)
+        );
         const skyMaterial = new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide });
         skyObj = new THREE.Mesh(skyGeometry, skyMaterial);
         skyObj.name = "Sky";
         scene.add(skyObj);
         
         // Renderer setup
-        renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+        renderer = new THREE.WebGLRenderer({
+            antialias: rendererCfg.antialias === true,
+            powerPreference: rendererCfg.powerPreference || 'high-performance'
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Number(rendererCfg.maxPixelRatio || 1.5)));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.domElement.style.display = 'block';
         document.body.appendChild(renderer.domElement);
         tourRefs.renderer = renderer;
         uiController.createFpsHud();
-        
-        // Add planets
-        mars = addPlanet(sunObj, 18, 520, 0.003, 0.009, [1, 0.009, 0.008], "./img/1k_mars.jpg", {
-            semiMajorAxis: 520,
-            eccentricity: 0.093,
-            inclination: THREE.MathUtils.degToRad(1.85),
-            longitude: THREE.MathUtils.degToRad(49.5),
-            meanMotion: 0.0052,
-            phase: 1.2
-        });
-        mercury = addPlanet(sunObj, 9, 150, 0.0085, 0.011, [0.2, 0.012, 0.4], "./img/2k_mercury.jpg", {
-            semiMajorAxis: 150,
-            eccentricity: 0.205,
-            inclination: THREE.MathUtils.degToRad(7.0),
-            longitude: THREE.MathUtils.degToRad(48.3),
-            meanMotion: 0.36,
-            phase: 0.7
+
+        const assignPlanetRef = (key, mesh) => {
+            switch (key) {
+                case 'mars': mars = mesh; break;
+                case 'mercury': mercury = mesh; break;
+                case 'venus': venus = mesh; break;
+                case 'earth': earth = mesh; break;
+                case 'earthMoon': earthMoon = mesh; break;
+                case 'jupiter': jupiter = mesh; break;
+                case 'saturn': saturn = mesh; break;
+                case 'uranus': uranus = mesh; break;
+                case 'neptune': neptune = mesh; break;
+                default: break;
+            }
+        };
+
+        const buildBody = (bodyCfg) => {
+            if (!bodyCfg || typeof bodyCfg !== 'object') {
+                return;
+            }
+
+            const parentKey = bodyCfg.parent || 'sun';
+            const parentObj = (parentKey === 'sun') ? sunObj : bodyMap.get(parentKey);
+            if (!parentObj) {
+                console.warn('[scene] missing body parent', bodyCfg.key, parentKey);
+                return;
+            }
+
+            const distance = Number(bodyCfg.distance || 0);
+            const rotationSpeed = Number(bodyCfg.rotationSpeed || 0);
+            const translationSpeed = Number(bodyCfg.translationSpeed || 0);
+            const orbitProfile = toOrbitProfile(bodyCfg.orbit, distance, translationSpeed);
+            let mesh = null;
+
+            if (bodyCfg.mode === 'displacement') {
+                const colorTexture = new THREE.TextureLoader().load(bodyCfg.texturePath);
+                const displacementMap = bodyCfg.displacementMapPath
+                    ? new THREE.TextureLoader().load(bodyCfg.displacementMapPath)
+                    : null;
+                const baseSegments = getSphereSegments(Number(bodyCfg.radius || 1));
+                const segmentBoost = bodyCfg.segmentBoost || {};
+                const geometry = new THREE.SphereBufferGeometry(
+                    Number(bodyCfg.radius || 1),
+                    Number(baseSegments.width + (segmentBoost.width || 0)),
+                    Number(baseSegments.height + (segmentBoost.height || 0))
+                );
+                const material = new THREE.MeshPhongMaterial({
+                    map: colorTexture,
+                    displacementMap,
+                    displacementScale: Number(bodyCfg.displacementScale || 0),
+                    shininess: Number(bodyCfg.shininess || 0)
+                });
+                mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(distance, 0, 0);
+
+                const pivot = new THREE.Group();
+                pivot.add(mesh);
+                pivot.position.set(0, 0, 0);
+                parentObj.add(pivot);
+
+                myPlanets.push({
+                    mesh,
+                    pivot,
+                    parent: parentObj,
+                    radius: Number(bodyCfg.radius || 1),
+                    distance,
+                    rotationSpeed,
+                    translationSpeed,
+                    texture: colorTexture,
+                    orbit: orbitProfile
+                });
+            } else {
+                mesh = addPlanet(
+                    parentObj,
+                    Number(bodyCfg.radius || 1),
+                    distance,
+                    rotationSpeed,
+                    translationSpeed,
+                    bodyCfg.initialRotation || [0, 0, 0],
+                    bodyCfg.texturePath,
+                    orbitProfile
+                );
+            }
+
+            if (!mesh) {
+                return;
+            }
+
+            if (typeof bodyCfg.name === 'string' && bodyCfg.name.trim()) {
+                mesh.name = bodyCfg.name.trim();
+            }
+
+            if (bodyCfg.atmosphere && typeof bodyCfg.atmosphere === 'object') {
+                const atmosphere = createFresnelAtmosphere(
+                    Number(bodyCfg.atmosphere.radius || (Number(bodyCfg.radius || 1) + 1)),
+                    bodyCfg.atmosphere.color || '#ffffff',
+                    Number(bodyCfg.atmosphere.power || 3),
+                    Number(bodyCfg.atmosphere.intensity || 0.5),
+                    THREE
+                );
+                mesh.add(atmosphere);
+                if (bodyCfg.key === 'venus') venusAtmosphere = atmosphere;
+                if (bodyCfg.key === 'earth') earthAtmosphere = atmosphere;
+            }
+
+            if (bodyCfg.rings && typeof bodyCfg.rings === 'object') {
+                const rings = bodyCfg.rings;
+                const alphaTexture = new THREE.TextureLoader().load(rings.texturePath);
+                alphaTexture.wrapS = THREE.ClampToEdgeWrapping;
+                alphaTexture.wrapT = THREE.ClampToEdgeWrapping;
+                alphaTexture.minFilter = THREE.LinearFilter;
+                alphaTexture.magFilter = THREE.LinearFilter;
+                alphaTexture.generateMipmaps = false;
+
+                const innerRadius = Number(rings.innerRadius || 1);
+                const outerRadius = Number(rings.outerRadius || 2);
+                const ringGeo = new THREE.RingBufferGeometry(innerRadius, outerRadius, Number(rings.segments || 96));
+                const ringPositions = ringGeo.attributes.position;
+                const ringUvs = ringGeo.attributes.uv;
+                const ringSpan = outerRadius - innerRadius;
+
+                for (let i = 0; i < ringPositions.count; i += 1) {
+                    const x = ringPositions.getX(i);
+                    const y = ringPositions.getY(i);
+                    const radius = Math.sqrt((x * x) + (y * y));
+                    const radialU = THREE.MathUtils.clamp((radius - innerRadius) / ringSpan, 0, 1);
+                    ringUvs.setXY(i, radialU, 0.5);
+                }
+
+                ringUvs.needsUpdate = true;
+                const ringMat = new THREE.MeshBasicMaterial({
+                    map: alphaTexture,
+                    alphaMap: alphaTexture,
+                    transparent: true,
+                    opacity: Number(rings.opacity || 0.85),
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                ringMesh.rotation.x = THREE.MathUtils.degToRad(Number(rings.tiltDeg || 80));
+                mesh.add(ringMesh);
+                saturnRings = ringMesh;
+            }
+
+            if (typeof bodyCfg.key === 'string' && bodyCfg.key.trim()) {
+                bodyMap.set(bodyCfg.key.trim(), mesh);
+                assignPlanetRef(bodyCfg.key.trim(), mesh);
+            }
+        };
+
+        (runtimeSceneConfig.bodies || []).forEach((bodyCfg) => {
+            buildBody(bodyCfg);
         });
 
-        venus = addPlanet(sunObj, 15, 220, 0.006, 0.007, [0.3, 0.007, 1], "./img/1k_venus_surface.jpg", {
-            semiMajorAxis: 220,
-            eccentricity: 0.01,
-            inclination: THREE.MathUtils.degToRad(3.4),
-            longitude: THREE.MathUtils.degToRad(76.7),
-            meanMotion: 0.279,
-            phase: 3.4
-        });
-
-        earth = addPlanet(sunObj, 16, 390, 0.0055, 0.0086, [0.4, 0.007, 0.2], "./img/earth_day_4096.jpg", {
-            semiMajorAxis: 390,
-            eccentricity: 0.0167,
-            inclination: THREE.MathUtils.degToRad(0.4),
-            longitude: THREE.MathUtils.degToRad(11.3),
-            meanMotion: 0.0062,
-            phase: 2.15
-        });
-
-        const earthMoonColor = new THREE.TextureLoader().load('./img/pv_moon_213_moon.jpg');
-        const earthMoonDisplacement = new THREE.TextureLoader().load('./img/moon_ldem_3_8bit.jpg');
-        const earthMoonSegments = getSphereSegments(4.2);
-        const earthMoonGeometry = new THREE.SphereBufferGeometry(4.2, earthMoonSegments.width + 8, earthMoonSegments.height + 6);
-        const earthMoonMaterial = new THREE.MeshPhongMaterial({
-            map: earthMoonColor,
-            displacementMap: earthMoonDisplacement,
-            displacementScale: 0.32,
-            shininess: 5
-        });
-        earthMoon = new THREE.Mesh(earthMoonGeometry, earthMoonMaterial);
-        earthMoon.position.set(34, 0, 0);
-
-        const earthMoonPivot = new THREE.Group();
-        earthMoonPivot.add(earthMoon);
-        // Moon pivot must remain local to Earth's origin.
-        earthMoonPivot.position.set(0, 0, 0);
-        earth.add(earthMoonPivot);
-
-        myPlanets.push({
-            mesh: earthMoon,
-            pivot: earthMoonPivot,
-            parent: earth,
-            radius: 4.2,
-            distance: 34,
-            rotationSpeed: 0.006,
-            translationSpeed: 0.028,
-            texture: earthMoonColor,
-            orbit: {
-                semiMajorAxis: 34,
-                eccentricity: 0.055,
-                inclination: THREE.MathUtils.degToRad(18),
-                longitude: THREE.MathUtils.degToRad(28),
-                meanMotion: 0.028,
-                phase: 0.9
+        (runtimeSceneConfig.probeTargetKeys || []).forEach((key) => {
+            const mesh = bodyMap.get(key);
+            if (mesh) {
+                probeTargets.push(mesh);
             }
         });
 
-        // Fresnel atmospheres (rim lighting look).
-        venusAtmosphere = createFresnelAtmosphere(16.9, 0xf3b77a, 3.2, 0.58, THREE);
-        venus.add(venusAtmosphere);
-
-        earthAtmosphere = createFresnelAtmosphere(17.6, 0x5faeff, 3.9, 0.52, THREE);
-        earth.add(earthAtmosphere);
-
-        jupiter = addPlanet(sunObj, 38, 860, 0.003, 0.006, [1, 0.006, -0.5], "./img/1k_jupiter.jpg", {
-            semiMajorAxis: 860,
-            eccentricity: 0.049,
-            inclination: THREE.MathUtils.degToRad(1.3),
-            longitude: THREE.MathUtils.degToRad(100.5),
-            meanMotion: 0.0027,
-            phase: 5.0
+        (runtimeSceneConfig.cameraTourTargetKeys || []).forEach((key) => {
+            const mesh = bodyMap.get(key);
+            if (mesh) {
+                cameraTourTargets.push(mesh);
+            }
         });
-
-        // Saturn + ring texture set.
-        saturn = addPlanet(sunObj, 31, 1200, 0.0024, 0.0048, [1, 0.006, -0.5], "./img/2k_saturn.jpg", {
-            semiMajorAxis: 1200,
-            eccentricity: 0.056,
-            inclination: THREE.MathUtils.degToRad(2.5),
-            longitude: THREE.MathUtils.degToRad(113.7),
-            meanMotion: 0.0032,
-            phase: 0.6
-        });
-
-        const saturnRingAlpha = new THREE.TextureLoader().load('./img/2k_saturn_ring_alpha.png');
-    saturnRingAlpha.wrapS = THREE.ClampToEdgeWrapping;
-    saturnRingAlpha.wrapT = THREE.ClampToEdgeWrapping;
-    saturnRingAlpha.minFilter = THREE.LinearFilter;
-    saturnRingAlpha.magFilter = THREE.LinearFilter;
-    saturnRingAlpha.generateMipmaps = false;
-        const saturnRingGeo = new THREE.RingBufferGeometry(46, 74, 96);
-        const saturnRingPositions = saturnRingGeo.attributes.position;
-        const saturnRingUvs = saturnRingGeo.attributes.uv;
-        const saturnRingSpan = 74 - 46;
-
-        for (let i = 0; i < saturnRingPositions.count; i += 1) {
-            const x = saturnRingPositions.getX(i);
-            const y = saturnRingPositions.getY(i);
-            const radius = Math.sqrt((x * x) + (y * y));
-            const radialU = THREE.MathUtils.clamp((radius - 46) / saturnRingSpan, 0, 1);
-
-            saturnRingUvs.setXY(i, radialU, 0.5);
-        }
-
-        saturnRingUvs.needsUpdate = true;
-        const saturnRingMat = new THREE.MeshBasicMaterial({
-            map: saturnRingAlpha,
-            alphaMap: saturnRingAlpha,
-            transparent: true,
-            opacity: 0.86,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-        saturnRings = new THREE.Mesh(saturnRingGeo, saturnRingMat);
-        saturnRings.rotation.x = THREE.MathUtils.degToRad(80);
-        saturn.add(saturnRings);
-
-        uranus = addPlanet(sunObj, 28, 1450, 0.0024, 0.0034, [0.6, 0.004, 0.3], "./img/2k_uranus.jpg", {
-            semiMajorAxis: 1450,
-            eccentricity: 0.047,
-            inclination: THREE.MathUtils.degToRad(0.8),
-            longitude: THREE.MathUtils.degToRad(74.0),
-            meanMotion: 0.0042,
-            phase: 1.9
-        });
-
-        neptune = addPlanet(sunObj, 27, 1780, 0.0022, 0.003, [0.7, 0.003, 0.1], "./img/2k_neptune.jpg", {
-            semiMajorAxis: 1780,
-            eccentricity: 0.009,
-            inclination: THREE.MathUtils.degToRad(1.8),
-            longitude: THREE.MathUtils.degToRad(131.8),
-            meanMotion: 0.0035,
-            phase: 4.2
-        });
-
-        // Additional textured moons from the downloaded PV pack.
-        // Inclinations are intentionally exaggerated for clearer visual separation.
-        addPlanet(mars, 2.4, 28, 0.012, 0.055, [0, 0, 0], "./img/pv_moon_215_phobos.jpg", {
-            semiMajorAxis: 28,
-            eccentricity: 0.018,
-            inclination: THREE.MathUtils.degToRad(24),
-            longitude: THREE.MathUtils.degToRad(5),
-            meanMotion: 0.055,
-            phase: 0.3
-        });
-        addPlanet(mars, 1.8, 40, 0.01, 0.038, [0, 0, 0], "./img/pv_moon_201_deimos.jpg", {
-            semiMajorAxis: 40,
-            eccentricity: 0.012,
-            inclination: THREE.MathUtils.degToRad(34),
-            longitude: THREE.MathUtils.degToRad(88),
-            meanMotion: 0.038,
-            phase: 2.1
-        });
-
-        addPlanet(jupiter, 4.4, 66, 0.01, 0.05, [0, 0, 0], "./img/pv_moon_209_io.jpg", {
-            semiMajorAxis: 66,
-            eccentricity: 0.004,
-            inclination: THREE.MathUtils.degToRad(12),
-            longitude: THREE.MathUtils.degToRad(140),
-            meanMotion: 0.05,
-            phase: 1.4
-        });
-        addPlanet(jupiter, 4.1, 78, 0.009, 0.041, [0, 0, 0], "./img/pv_moon_205_europa.jpg", {
-            semiMajorAxis: 78,
-            eccentricity: 0.009,
-            inclination: THREE.MathUtils.degToRad(26),
-            longitude: THREE.MathUtils.degToRad(220),
-            meanMotion: 0.041,
-            phase: 3.1
-        });
-        addPlanet(jupiter, 5.0, 93, 0.008, 0.032, [0, 0, 0], "./img/pv_moon_206_ganymede.jpg", {
-            semiMajorAxis: 93,
-            eccentricity: 0.002,
-            inclination: THREE.MathUtils.degToRad(37),
-            longitude: THREE.MathUtils.degToRad(300),
-            meanMotion: 0.032,
-            phase: 5.5
-        });
-
-        addPlanet(saturn, 4.8, 88, 0.009, 0.023, [0, 0, 0], "./img/pv_moon_221_titan.jpg", {
-            semiMajorAxis: 88,
-            eccentricity: 0.029,
-            inclination: THREE.MathUtils.degToRad(21),
-            longitude: THREE.MathUtils.degToRad(170),
-            meanMotion: 0.023,
-            phase: 0.8
-        });
-
-        addPlanet(neptune, 4.2, 72, 0.009, 0.02, [0, 0, 0], "./img/pv_moon_223_triton.jpg", {
-            semiMajorAxis: 72,
-            eccentricity: 0,
-            inclination: THREE.MathUtils.degToRad(140),
-            longitude: THREE.MathUtils.degToRad(250),
-            meanMotion: 0.02,
-            phase: 4.0
-        });
-
-        probeTargets.push(mercury, venus, earth, mars, jupiter, saturn, uranus, neptune);
-        // Camera tour avoids inner planets for longer cinematic flybys.
-        cameraTourTargets.push(earth, mars, jupiter, saturn, uranus, neptune);
 
         // Probe uses the same phased tour logic as camera, but across all planets.
         const probeGeometry = new THREE.SphereBufferGeometry(3.6, 12, 10);
@@ -553,35 +871,41 @@ function sceneInit() {
             updateProbeRouteLine(performance.now(), true);
         }
         
-        // Add moon to Mars
-        const moon = addPlanet(mars, 4, 42, 0.008, 0.005, [0.002, 0.002, 1], "./img/1k_moon.jpg", {
-            semiMajorAxis: 42,
-            eccentricity: 0.035,
-            inclination: THREE.MathUtils.degToRad(5.1),
-            longitude: THREE.MathUtils.degToRad(12),
-            meanMotion: 0.021,
-            phase: 2.3
-        });
-        addMarsParticles(mars, myParticles, marsParticleTextures, THREE, Partykals);
+        if (mars) {
+            addMarsParticles(mars, myParticles, marsParticleTextures, THREE, Partykals);
 
-        marsAura = new THREE.PointLight(0xff4d1f, 1.1, 210);
-        marsAura.position.set(0, 0, 0);
-        mars.add(marsAura);
+            const marsEffectsCfg = runtimeSceneConfig.marsEffects || {};
+            const auraCfg = marsEffectsCfg.aura || {};
+            marsAura = new THREE.PointLight(
+                auraCfg.color || '#ff4d1f',
+                Number(auraCfg.intensity || 1.1),
+                Number(auraCfg.distance || 210)
+            );
+            marsAura.position.set(0, 0, 0);
+            mars.add(marsAura);
 
-        // Ghost trails: subtle additive spheres that lag behind Mars in world space.
-        for (let i = 0; i < 4; i++) {
-            const trailGeo = new THREE.SphereBufferGeometry(3.6 - (i * 0.5), 10, 8);
-            const trailMat = new THREE.MeshBasicMaterial({
-                color: 0xff5a2a,
-                transparent: true,
-                opacity: 0.14 - (i * 0.02),
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            });
-            const trailMesh = new THREE.Mesh(trailGeo, trailMat);
-            trailMesh.visible = true;
-            scene.add(trailMesh);
-            marsTrails.push(trailMesh);
+            const trailsCfg = marsEffectsCfg.trails || {};
+            const trailCount = Number(trailsCfg.count || 4);
+            const baseRadius = Number(trailsCfg.baseRadius || 3.6);
+            const radiusStep = Number(trailsCfg.radiusStep || 0.5);
+            const trailColor = trailsCfg.color || '#ff5a2a';
+            const baseOpacity = Number(trailsCfg.baseOpacity || 0.14);
+            const opacityStep = Number(trailsCfg.opacityStep || 0.02);
+
+            for (let i = 0; i < trailCount; i++) {
+                const trailGeo = new THREE.SphereBufferGeometry(baseRadius - (i * radiusStep), 10, 8);
+                const trailMat = new THREE.MeshBasicMaterial({
+                    color: trailColor,
+                    transparent: true,
+                    opacity: baseOpacity - (i * opacityStep),
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                const trailMesh = new THREE.Mesh(trailGeo, trailMat);
+                trailMesh.visible = true;
+                scene.add(trailMesh);
+                marsTrails.push(trailMesh);
+            }
         }
         
         // Event listeners
@@ -776,10 +1100,12 @@ function sceneInit() {
         }
         
         // Update celestial bodies
-        sunObj.rotation.y += 0.0007;
-        skyObj.rotation.x += 0.0006;
-        skyObj.rotation.y += 0.0005;
-        skyObj.rotation.z -= 0.0004;
+        const sunRotationSpeedY = Number((runtimeSceneConfig.sun && runtimeSceneConfig.sun.rotationSpeedY) || 0.0007);
+        const skyRotation = (runtimeSceneConfig.sky && runtimeSceneConfig.sky.rotationSpeed) || { x: 0.0006, y: 0.0005, z: -0.0004 };
+        sunObj.rotation.y += sunRotationSpeedY;
+        skyObj.rotation.x += Number(skyRotation.x || 0);
+        skyObj.rotation.y += Number(skyRotation.y || 0);
+        skyObj.rotation.z += Number(skyRotation.z || 0);
         reactiveController.update(now, {
             sunLight,
             ambientLight,

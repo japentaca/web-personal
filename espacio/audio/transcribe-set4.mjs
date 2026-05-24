@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const SETS_FILE = path.join(__dirname, "sets.js");
+const SCENE_DEFINITION_FILE = path.join(__dirname, "..", "scene.definition.json");
 const CACHE_FILE = path.join(__dirname, "set4.transcripts.json");
 const STT_PROVIDER = (process.env.STT_PROVIDER || "openrouter").toLowerCase();
 const OPENROUTER_BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
@@ -60,118 +60,24 @@ async function loadEnvFile() {
   }
 }
 
-function findMatchingBracket(source, startIndex, openChar, closeChar) {
-  let depth = 0;
-  let inString = false;
-  let stringQuote = "";
-  let escaped = false;
+async function loadSceneDefinition() {
+  const raw = await fs.readFile(SCENE_DEFINITION_FILE, "utf8");
+  const parsed = JSON.parse(raw);
 
-  for (let i = startIndex; i < source.length; i += 1) {
-    const ch = source[i];
-
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (ch === stringQuote) {
-        inString = false;
-        stringQuote = "";
-      }
-      continue;
-    }
-
-    if (ch === "\"" || ch === "'") {
-      inString = true;
-      stringQuote = ch;
-      continue;
-    }
-
-    if (ch === openChar) {
-      depth += 1;
-      continue;
-    }
-
-    if (ch === closeChar) {
-      depth -= 1;
-      if (depth === 0) {
-        return i;
-      }
-    }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("scene.definition.json no contiene un objeto valido");
   }
 
-  return -1;
+  const set4Files = parsed?.audioSetLibrary?.set4?.files;
+  if (!Array.isArray(set4Files)) {
+    throw new Error("No se encontro audioSetLibrary.set4.files en scene.definition.json");
+  }
+
+  return parsed;
 }
 
-function escapeJsString(value) {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/\r/g, "")
-    .replace(/\n/g, "\\n")
-    .replace(/\"/g, "\\\"");
-}
-
-function unescapeJsString(value) {
-  return value
-    .replace(/\\n/g, "\n")
-    .replace(/\\\"/g, '"')
-    .replace(/\\\\/g, "\\");
-}
-
-function parseSet4Files(source) {
-  const set4KeyIndex = source.indexOf("set4:");
-  if (set4KeyIndex === -1) {
-    throw new Error("No se encontro set4 en sets.js");
-  }
-
-  const set4Open = source.indexOf("{", set4KeyIndex);
-  const set4Close = findMatchingBracket(source, set4Open, "{", "}");
-  if (set4Open === -1 || set4Close === -1) {
-    throw new Error("No se pudo parsear el bloque de set4");
-  }
-
-  const filesKeyIndex = source.indexOf("files:", set4KeyIndex);
-  if (filesKeyIndex === -1 || filesKeyIndex > set4Close) {
-    throw new Error("No se encontro files dentro de set4");
-  }
-
-  const arrayOpen = source.indexOf("[", filesKeyIndex);
-  const arrayClose = findMatchingBracket(source, arrayOpen, "[", "]");
-  if (arrayOpen === -1 || arrayClose === -1 || arrayClose > set4Close) {
-    throw new Error("No se pudo parsear files[] dentro de set4");
-  }
-
-  const arrayText = source.slice(arrayOpen + 1, arrayClose);
-  const fileEntries = [];
-  const objectRegex = /\{([^{}]*)\}/g;
-
-  for (const match of arrayText.matchAll(objectRegex)) {
-    const body = match[1];
-    const pathMatch = body.match(/path\s*:\s*"([^"]+)"/);
-    if (!pathMatch) {
-      continue;
-    }
-
-    const textMatch = body.match(/text\s*:\s*"((?:\\.|[^"\\])*)"/);
-    fileEntries.push({
-      path: pathMatch[1],
-      text: textMatch ? unescapeJsString(textMatch[1]) : ""
-    });
-  }
-
-  if (fileEntries.length === 0) {
-    throw new Error("No se encontraron paths en set4.files");
-  }
-
-  return {
-    arrayOpen,
-    arrayClose,
-    fileEntries
-  };
+function getSet4Files(sceneDefinition) {
+  return sceneDefinition.audioSetLibrary.set4.files;
 }
 
 async function loadCache() {
@@ -260,28 +166,24 @@ async function transcribeFile({ absoluteFilePath, relativePath, apiKey }) {
   return text.trim();
 }
 
-function injectTextsInSet4(source, pathsInOrder, transcriptsByPath, arrayOpen, arrayClose) {
-  const rebuiltRows = pathsInOrder.map((audioPath) => {
-    const transcript = transcriptsByPath[audioPath] || "";
-    return `      { path: "${audioPath}", text: "${escapeJsString(transcript)}" },`;
-  });
+async function persistSceneDefinition(sceneDefinition, transcriptsByPath) {
+  const set4Files = getSet4Files(sceneDefinition);
 
-  const replacedArrayBody = `\n${rebuiltRows.join("\n")}\n\n    `;
-  return source.slice(0, arrayOpen + 1) + replacedArrayBody + source.slice(arrayClose);
-}
+  for (const fileDef of set4Files) {
+    if (!fileDef || typeof fileDef.path !== "string") {
+      continue;
+    }
 
-async function persistSetsFile(currentSource, paths, transcriptsByPath) {
-  const parsed = parseSet4Files(currentSource);
-  const updatedSource = injectTextsInSet4(
-    currentSource,
-    paths,
-    transcriptsByPath,
-    parsed.arrayOpen,
-    parsed.arrayClose
-  );
+    const relativePath = fileDef.path.trim();
+    const transcript = transcriptsByPath[relativePath];
+    if (typeof transcript === "string" && transcript.trim()) {
+      fileDef.text = transcript.trim();
+    }
+  }
 
-  await fs.writeFile(SETS_FILE, updatedSource, "utf8");
-  return updatedSource;
+  const serialized = `${JSON.stringify(sceneDefinition, null, 2)}\n`;
+  await fs.writeFile(SCENE_DEFINITION_FILE, serialized, "utf8");
+  return serialized;
 }
 
 async function main() {
@@ -308,14 +210,25 @@ async function main() {
     );
   }
 
-  let source = await fs.readFile(SETS_FILE, "utf8");
-  const { fileEntries } = parseSet4Files(source);
-  const paths = fileEntries.map((entry) => entry.path);
-  const existingTranscriptsByPath = {};
+  const sceneDefinition = await loadSceneDefinition();
+  const set4Files = getSet4Files(sceneDefinition);
+  const paths = set4Files
+    .map((entry) => (entry && typeof entry.path === "string" ? entry.path.trim() : ""))
+    .filter(Boolean);
 
-  for (const entry of fileEntries) {
-    if (typeof entry.text === "string" && entry.text.trim() && !existingTranscriptsByPath[entry.path]) {
-      existingTranscriptsByPath[entry.path] = entry.text.trim();
+  if (!paths.length) {
+    throw new Error("No se encontraron archivos en audioSetLibrary.set4.files");
+  }
+
+  const existingTranscriptsByPath = {};
+  for (const entry of set4Files) {
+    if (!entry || typeof entry.path !== "string") {
+      continue;
+    }
+
+    const relativePath = entry.path.trim();
+    if (typeof entry.text === "string" && entry.text.trim() && !existingTranscriptsByPath[relativePath]) {
+      existingTranscriptsByPath[relativePath] = entry.text.trim();
     }
   }
 
@@ -328,12 +241,11 @@ async function main() {
     }
   }
 
-  // Al iniciar, vuelca cache+existente para recuperar avance de corridas interrumpidas.
-  source = await persistSetsFile(source, paths, transcriptsByPath);
+  await persistSceneDefinition(sceneDefinition, transcriptsByPath);
 
   const selectedPaths = onlyPath ? paths.filter((p) => p === onlyPath) : paths;
   if (onlyPath && selectedPaths.length === 0) {
-    throw new Error(`El archivo indicado con --only no existe en set4.files: ${onlyPath}`);
+    throw new Error(`El archivo indicado con --only no existe en audioSetLibrary.set4.files: ${onlyPath}`);
   }
 
   for (const relativePath of selectedPaths) {
@@ -361,7 +273,7 @@ async function main() {
     cache[relativePath] = transcript;
     transcriptsByPath[relativePath] = transcript;
     await saveCache(cache);
-    source = await persistSetsFile(source, paths, transcriptsByPath);
+    await persistSceneDefinition(sceneDefinition, transcriptsByPath);
     console.log(`Guardado incremental: ${relativePath}`);
 
     if (REQUEST_DELAY_MS > 0) {
@@ -369,20 +281,20 @@ async function main() {
     }
   }
 
-  const updatedSource = await persistSetsFile(source, paths, transcriptsByPath);
+  const updatedSource = `${JSON.stringify(sceneDefinition, null, 2)}\n`;
 
   if (dryRun) {
-    const previewPath = path.join(__dirname, "sets.preview.js");
+    const previewPath = path.join(__dirname, "scene.definition.preview.json");
     await fs.writeFile(previewPath, updatedSource, "utf8");
     console.log(`Dry run listo: ${previewPath}`);
     return;
   }
 
-  await fs.writeFile(SETS_FILE, updatedSource, "utf8");
-  console.log("Listo: set4 en sets.js actualizado con textos");
+  await fs.writeFile(SCENE_DEFINITION_FILE, updatedSource, "utf8");
+  console.log("Listo: set4 en scene.definition.json actualizado con textos");
 }
 
 main().catch((error) => {
-  console.error(error.message);
+  console.error(error.message || error);
   process.exitCode = 1;
 });

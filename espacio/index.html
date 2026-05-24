@@ -73,7 +73,6 @@
         }
 
         const bootstrapScripts = [
-            { src: "audio/sets.js", cacheBust: true },
             { src: "https://cdn.jsdelivr.net/npm/lodash@4.17.15/lodash.min.js", cacheBust: false },
             { src: "https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js", cacheBust: false },
             { src: "./modules/three.min.js", cacheBust: true },
@@ -99,6 +98,7 @@
         await window.__scriptsReady;
 
         const randomQuery = window.__cacheBustQuery || `r=${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        const sceneDefinitionPath = `./scene.definition.json?${randomQuery}`;
         const fullscreenHint = document.getElementById("fullscreen-hint");
 
         const hideFullscreenHint = () => {
@@ -129,10 +129,133 @@
 
         const { default: scene } = await import(`./modules/scene.js?${randomQuery}`);
 
-        scene.init()
-        scene.addAudioSet(sets["set4"])
-        scene.addAudioSet(sets["set2"])
-        scene.addBase("./audio/base1.mp3")
+        const getDefaultSceneDefinition = () => ({
+            initializeScene: true,
+            scene3d: {},
+            audioSetLibrary: {},
+            audioQueue: [],
+            baseTracks: []
+        });
+
+        const deepClone = (value) => {
+            if (typeof structuredClone === "function") {
+                return structuredClone(value);
+            }
+
+            return JSON.parse(JSON.stringify(value));
+        };
+
+        const normalizeSceneDefinition = (definition) => {
+            const defaults = getDefaultSceneDefinition();
+            if (!definition || typeof definition !== "object") {
+                return defaults;
+            }
+
+            const normalized = {
+                initializeScene: definition.initializeScene !== false,
+                scene3d: {},
+                audioSetLibrary: {},
+                audioQueue: [],
+                baseTracks: []
+            };
+
+            if (definition.scene3d && typeof definition.scene3d === "object" && !Array.isArray(definition.scene3d)) {
+                normalized.scene3d = definition.scene3d;
+            }
+
+            if (definition.audioSetLibrary && typeof definition.audioSetLibrary === "object") {
+                Object.entries(definition.audioSetLibrary).forEach(([id, setDefinition]) => {
+                    if (typeof id !== "string" || !id.trim()) {
+                        return;
+                    }
+
+                    if (!setDefinition || typeof setDefinition !== "object") {
+                        return;
+                    }
+
+                    normalized.audioSetLibrary[id.trim()] = setDefinition;
+                });
+            }
+
+            const queueCandidates = Array.isArray(definition.audioQueue)
+                ? definition.audioQueue
+                : (Array.isArray(definition.audioSets) ? definition.audioSets : []);
+
+            normalized.audioQueue = queueCandidates
+                .map((entry) => {
+                    if (typeof entry === "string") {
+                        return { id: entry.trim() };
+                    }
+
+                    if (!entry || typeof entry !== "object") {
+                        return null;
+                    }
+
+                    if (entry.definition && typeof entry.definition === "object") {
+                        return { definition: entry.definition };
+                    }
+
+                    if (typeof entry.id === "string" && entry.id.trim()) {
+                        return { id: entry.id.trim() };
+                    }
+
+                    return null;
+                })
+                .filter(Boolean);
+
+            if (!normalized.audioQueue.length) {
+                normalized.audioQueue = defaults.audioQueue;
+            }
+
+            if (Array.isArray(definition.baseTracks)) {
+                normalized.baseTracks = definition.baseTracks
+                    .filter((path) => typeof path === "string" && path.trim())
+                    .map((path) => path.trim());
+            }
+
+            if (!normalized.baseTracks.length) {
+                normalized.baseTracks = defaults.baseTracks;
+            }
+
+            return normalized;
+        };
+
+        const loadSceneDefinition = async () => {
+            try {
+                const response = await fetch(sceneDefinitionPath, { cache: "no-store" });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const rawDefinition = await response.json();
+                return normalizeSceneDefinition(rawDefinition);
+            } catch (error) {
+                console.warn("[bootstrap] scene definition fallback", error);
+                return getDefaultSceneDefinition();
+            }
+        };
+
+        const sceneDefinition = await loadSceneDefinition();
+
+        if (sceneDefinition.initializeScene) {
+            scene.init(sceneDefinition.scene3d);
+        }
+
+        sceneDefinition.audioQueue.forEach((entry) => {
+            const setDefinition = entry.definition
+                || (entry.id ? sceneDefinition.audioSetLibrary[entry.id] : null);
+
+            if (!setDefinition) {
+                console.warn("[bootstrap] missing audio set", entry.id);
+                return;
+            }
+
+            scene.addAudioSet(deepClone(setDefinition));
+        });
+
+        sceneDefinition.baseTracks.forEach((path) => {
+            scene.addBase(path);
+        });
     </script>
 </body>
 

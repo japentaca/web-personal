@@ -17,6 +17,15 @@ El proyecto combina una portada de estilo retro-web con una seccion inmersiva de
 ## Mantenimiento de escena 3D
 
 - Mapa de cambios por responsabilidad: `espacio/modules/scene/CHANGE_MAP.md`
+- Configuracion de arranque de escena (JSON): `espacio/scene.definition.json`
+- El arranque ya no depende de `espacio/audio/sets.js`; ese archivo legacy fue retirado y la cola/definiciones de audio se leen desde JSON.
+- Scripts de apoyo de audio (`annotate-durations.mjs`, `transcribe-set4.mjs`) actualizan `scene.definition.json`.
+- Campos de `scene.definition.json`:
+	- `initializeScene`: inicia o no la escena 3D
+	- `scene3d`: definicion completa de camara, luces, cuerpos, orbitas y efectos visuales
+	- `baseTracks`: lista de bases en loop
+	- `audioSetLibrary`: diccionario de sets disponibles
+	- `audioQueue`: orden de reproduccion (ids del diccionario o definiciones inline)
 - Orquestador principal de runtime: `espacio/modules/scene.js`
 - Utilidades y shaders de escena: `espacio/modules/scene/sceneUtils.js`
 - Particulas de Marte: `espacio/modules/scene/marsParticles.js`
