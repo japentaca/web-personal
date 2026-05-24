@@ -151,6 +151,42 @@
                 return defaults;
             }
 
+            const normalizeBaseTrackEntry = (entry) => {
+                if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+                    return null;
+                }
+
+                if (!Array.isArray(entry.tracks)) {
+                    return null;
+                }
+
+                const tracks = entry.tracks
+                    .filter((path) => typeof path === "string" && path.trim())
+                    .map((path) => path.trim());
+
+                if (!tracks.length) {
+                    return null;
+                }
+
+                const normalizedEntry = {
+                    tracks
+                };
+
+                if (Number.isFinite(entry.crossfadeSec) && entry.crossfadeSec > 0) {
+                    normalizedEntry.crossfadeSec = entry.crossfadeSec;
+                }
+
+                if (Number.isFinite(entry.holdSec) && entry.holdSec > 0) {
+                    normalizedEntry.holdSec = entry.holdSec;
+                }
+
+                if (Number.isFinite(entry.volumeDb)) {
+                    normalizedEntry.volumeDb = entry.volumeDb;
+                }
+
+                return normalizedEntry;
+            };
+
             const normalized = {
                 initializeScene: definition.initializeScene !== false,
                 scene3d: {},
@@ -209,8 +245,8 @@
 
             if (Array.isArray(definition.baseTracks)) {
                 normalized.baseTracks = definition.baseTracks
-                    .filter((path) => typeof path === "string" && path.trim())
-                    .map((path) => path.trim());
+                    .map(normalizeBaseTrackEntry)
+                    .filter(Boolean);
             }
 
             if (!normalized.baseTracks.length) {
@@ -253,8 +289,8 @@
             scene.addAudioSet(deepClone(setDefinition));
         });
 
-        sceneDefinition.baseTracks.forEach((path) => {
-            scene.addBase(path);
+        sceneDefinition.baseTracks.forEach((entry) => {
+            scene.addBase(entry);
         });
     </script>
 </body>

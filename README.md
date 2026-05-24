@@ -23,7 +23,9 @@ El proyecto combina una portada de estilo retro-web con una seccion inmersiva de
 - Campos de `scene.definition.json`:
 	- `initializeScene`: inicia o no la escena 3D
 	- `scene3d`: definicion completa de camara, luces, cuerpos, orbitas y efectos visuales
-	- `baseTracks`: lista de bases en loop
+	- `baseTracks`: modo hibrido con formato canonico (grupos en paralelo + crossfade entre grupos)
+		- `{ "tracks": ["./audio/a.mp3", "./audio/b.mp3"], "crossfadeSec": 10, "holdSec": 32, "volumeDb": -3 }`
+		- `crossfadeSec` por defecto: `10`
 	- `audioSetLibrary`: diccionario de sets disponibles
 	- `audioQueue`: orden de reproduccion (ids del diccionario o definiciones inline)
 - Orquestador principal de runtime: `espacio/modules/scene.js`

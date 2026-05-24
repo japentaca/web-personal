@@ -1,7 +1,12 @@
 {
   "initializeScene": true,
   "baseTracks": [
-    "./audio/base1.mp3"
+    {
+      "tracks": [
+        "./audio/base1.mp3"
+      ],
+      "crossfadeSec": 10
+    }
   ],
   "audioSetLibrary": {
     "set2": {
