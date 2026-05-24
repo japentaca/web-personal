@@ -361,8 +361,7 @@
                     <p class="blink">Página en construcción!</p>
                     <div class="under-construction-deluxe">[!] UNDER CONSTRUCTION [!] &nbsp; obreros pixel trabajando...</div>
                     <canvas id="heartTrigger" class="heart-preview" role="button" tabindex="0" aria-label="Activar modo cósmico"></canvas>
-                    <p>Aquí algunos de mis experimentos:</p>
-                    <ul id="linksList" class="links"></ul>
+                
                     <div class="marquee">
                         <marquee>Bienvenidos a mi web personal. Espero que disfrute la estadía.</marquee>
                     </div>
@@ -407,7 +406,6 @@
         const retroPage = document.getElementById('retro-page');
         const sceneRoot = document.getElementById('scene');
         const heartTrigger = document.getElementById('heartTrigger');
-        const linksList = document.getElementById('linksList');
         const visitorCounterEl = document.getElementById('visitorCount');
         const matrixRain = document.getElementById('matrixRain');
         const dialupOverlay = document.getElementById('dialupOverlay');
@@ -421,7 +419,7 @@
 
         const fallbackLinks = [
             { text: 'Espacio!', description: 'Experimentos espaciales, visuales y audio', link: './espacio/index.html' },
-            { text: 'Armónicos de Fibonacci', description: 'Patrones sonoros basados en la sucesion de Fibonacci', link: './fibonaccio/index.html' },
+            { text: 'Armonicos de Fibonacci', description: 'Patrones sonoros basados en la sucesion de Fibonacci', link: './fibonaccio/index.html' },
             { text: 'Laboratorio VHS', description: 'Pruebas de imagen retro y glitches analogicos', link: './labs/vhs/index.html' },
             { text: 'Galeria Pixel', description: 'Coleccion de piezas y pruebas visuales pixeladas', link: './galeria/pixel/index.html' }
         ];
@@ -457,20 +455,7 @@
             }
         }
 
-        function renderLinksInIntro(links) {
-            linksList.innerHTML = '';
-            links.forEach((entry) => {
-                const li = document.createElement('li');
-                const a = document.createElement('a');
-                a.href = entry.link;
-                a.textContent = entry.text;
-                li.appendChild(a);
-                linksList.appendChild(li);
-            });
-        }
-
         const linksData = await loadLinksData();
-        renderLinksInIntro(linksData);
 
         function initMatrixRain(canvas) {
             const ctx = canvas.getContext('2d');
@@ -1080,42 +1065,53 @@
                     return;
                 }
 
+                const textValue = 'Pinchame para acceder a mis proyectos';
                 const textMeshData = createThreeText({
-                    text: 'pinchame',
+                    text: textValue,
                     font,
-                    size: 0.24,
-                    depth: 0.06,
-                    color: 0x7aff3d
+                    size: 0.13,
+                    depth: 0.04,
+                    color: 0x7aff3d,
+                    align: 'left'
                 });
                 promptText = textMeshData.mesh;
-                promptText.position.set(0, 0.96, 0.62);
                 scene.add(promptText);
 
                 textMeshData.material.dispose();
                 const neonMaterial = new THREE.MeshStandardMaterial({
                     color: 0x7aff3d,
                     emissive: new THREE.Color(0x2cff00),
-                    emissiveIntensity: 1.25,
-                    roughness: 0.28,
-                    metalness: 0.06
+                    emissiveIntensity: 1.1,
+                    roughness: 0.3,
+                    metalness: 0.08
                 });
                 promptText.material = neonMaterial;
 
                 const outlineData = createThreeText({
-                    text: 'pinchame',
+                    text: textValue,
                     font,
-                    size: 0.255,
-                    depth: 0.03,
+                    size: 0.136,
+                    depth: 0.02,
                     color: 0x00f0ff,
                     transparent: true,
-                    opacity: 0.92
+                    opacity: 0.86,
+                    align: 'left'
                 });
                 promptTextOutline = outlineData.mesh;
-                promptTextOutline.position.set(0, 0.95, 0.58);
                 scene.add(promptTextOutline);
+
+                const startX = 1.45;
+                const baseY = 0.97;
+                const wrapX = -1.55 - textMeshData.width;
+
+                promptText.position.set(startX, baseY, 0.62);
+                promptTextOutline.position.set(startX, baseY - 0.01, 0.58);
 
                 promptText.userData.disposeAssets = [textMeshData.geometry, neonMaterial];
                 promptTextOutline.userData.disposeAssets = [outlineData.geometry, outlineData.material];
+
+                promptText.userData.ticker = { startX, wrapX, baseY, speed: 0.7 };
+                promptTextOutline.userData.ticker = { startX, wrapX, baseY: baseY - 0.01, speed: 0.7 };
             }).catch(() => {});
 
             let rafId = 0;
@@ -1137,19 +1133,23 @@
                 heart.position.y = Math.sin(t * 2.5) * 0.08;
                 key.intensity = 1.55 + (Math.sin((t * 3.1) + 0.4) * 0.25);
 
-                if (promptText) {
-                    promptText.position.y = 0.96 + (Math.sin(t * 2.2) * 0.055);
-                    promptText.position.x = Math.sin(t * 1.3) * 0.04;
-                    promptText.rotation.z = Math.sin(t * 2.0) * 0.09;
+                if (promptText && promptText.userData.ticker) {
+                    const ticker = promptText.userData.ticker;
+                    const travel = ticker.startX - ticker.wrapX;
+                    const phase = (t * ticker.speed) % travel;
+                    promptText.position.x = ticker.startX - phase;
+                    promptText.position.y = ticker.baseY + (Math.sin(t * 2.4) * 0.018);
                     if (promptText.material && promptText.material.emissive) {
-                        promptText.material.emissiveIntensity = 1.0 + (Math.sin((t * 4.2) + 0.8) * 0.45);
+                        promptText.material.emissiveIntensity = 1.0 + (Math.sin((t * 4.2) + 0.8) * 0.35);
                     }
                 }
-                if (promptTextOutline) {
-                    promptTextOutline.position.y = 0.95 + (Math.sin((t * 2.2) + 0.4) * 0.055);
-                    promptTextOutline.position.x = Math.sin((t * 1.3) + 0.4) * 0.04;
-                    promptTextOutline.rotation.z = Math.sin((t * 2.0) + 0.4) * 0.09;
-                    promptTextOutline.material.opacity = 0.65 + (Math.sin((t * 4.2) + 2.1) * 0.22);
+                if (promptTextOutline && promptTextOutline.userData.ticker) {
+                    const ticker = promptTextOutline.userData.ticker;
+                    const travel = ticker.startX - ticker.wrapX;
+                    const phase = (t * ticker.speed) % travel;
+                    promptTextOutline.position.x = ticker.startX - phase;
+                    promptTextOutline.position.y = ticker.baseY + (Math.sin((t * 2.4) + 0.4) * 0.018);
+                    promptTextOutline.material.opacity = 0.62 + (Math.sin((t * 4.2) + 2.1) * 0.2);
                 }
 
                 renderer.render(scene, camera);
@@ -1381,7 +1381,7 @@
                 depth: 0.012,
                 color: 0xffffff
             });
-            expTitle.mesh.position.set(0, -0.62, -0.11);
+            expTitle.mesh.position.set(0, -0.94, -0.11);
             retroGroup.add(expTitle.mesh);
             panelAssets.push(expTitle.geometry, expTitle.material);
 
@@ -1583,7 +1583,7 @@
                 const glowMat = new THREE.MeshBasicMaterial({
                     color: 0x55e6ff,
                     transparent: true,
-                    opacity: 0.08,
+                    opacity: 0,
                     blending: THREE.AdditiveBlending,
                     side: THREE.DoubleSide,
                     depthWrite: false
@@ -1905,12 +1905,8 @@
                         glowMesh.position.z = sign.position.z - 0.04;
                         glowMesh.rotation.x = sign.rotation.x;
                         glowMesh.rotation.y = sign.rotation.y;
-
-                        const targetGlowOpacity = isHovered ? 0.34 : 0.08;
-                        glowMesh.material.opacity = THREE.MathUtils.lerp(glowMesh.material.opacity, targetGlowOpacity, 0.2);
-
-                        const glowScale = THREE.MathUtils.lerp(glowMesh.scale.x, isHovered ? 1.15 : 1.0, 0.2);
-                        glowMesh.scale.set(glowScale, glowScale, 1);
+                        glowMesh.material.opacity = 0;
+                        glowMesh.scale.set(1, 1, 1);
                     }
 
                     const descriptionMesh = sign.userData.descriptionMesh;
