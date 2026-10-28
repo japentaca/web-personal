@@ -12,5 +12,14 @@
     "text": "Aros y Postes",
     "description": "Una cosa para quedarse mirando un rato cuando se está al gas",
     "link": "https://japentaca.github.io/aros-y-postes/"
+  },
+  {
+    "text": "Música celular",
+    "description": "Música generativa estocástica en base a células",
+    "link": "https://japentaca.github.io/celula-madre/"
+  }, {
+    "text": "Gorilas !",
+    "description": "Emulación Web del clásico GORILLAS.BAS",
+    "link": "https://gorillas.jape.com.ar"
   }
 ]
