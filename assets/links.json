@@ -21,5 +21,20 @@
     "text": "Gorilas !",
     "description": "Emulación Web del clásico GORILLAS.BAS",
     "link": "https://gorillas.jape.com.ar"
+  },
+  {
+    "text": "Pong Wars",
+    "description": "Dos colores se disputan el territorio a pelotazos. Original de Koen van Gilst (koenvangilst.nl)",
+    "link": "https://jape.com.ar/proyectos/pongwars/"
+  },
+  {
+    "text": "Pong Wars 3D",
+    "description": "Pong Wars en Three.js: terreno en altura, partículas y estelas. Basado en el original de Koen van Gilst (koenvangilst.nl)",
+    "link": "https://jape.com.ar/proyectos/pongwars3d/"
+  },
+  {
+    "text": "Caminantes",
+    "description": "Bípedos con locomoción procedural. Un mundo NPCs playMobil",
+    "link": "https://jape.com.ar/proyectos/caminantes/"
   }
 ]
