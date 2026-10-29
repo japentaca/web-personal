@@ -42,7 +42,7 @@
                 radial-gradient(circle at 80% 70%, #00416a 0%, rgba(0, 65, 106, 0) 38%),
                 #050013;
             z-index: 20;
-            transition: opacity 1400ms ease;
+            transition: opacity 700ms ease;
         }
 
         #matrixRain {
@@ -249,7 +249,7 @@
             inset: 0;
             z-index: 10;
             opacity: 0;
-            transition: opacity 1500ms ease;
+            transition: opacity 700ms ease;
         }
 
         #scene.visible {
@@ -620,12 +620,12 @@
             ];
 
             for (const step of steps) {
-                await new Promise((resolve) => setTimeout(resolve, 320 + Math.random() * 240));
+                await new Promise((resolve) => setTimeout(resolve, 140 + Math.random() * 100));
                 dialupFill.style.width = step.p + '%';
                 dialupText.textContent = step.t;
             }
 
-            await new Promise((resolve) => setTimeout(resolve, 220));
+            await new Promise((resolve) => setTimeout(resolve, 150));
             dialupOverlay.classList.remove('show');
         }
 
@@ -718,7 +718,7 @@
         const useCubemap = true;
         let revealStarted = false;
         const cinematic = {
-            durationSec: 12,
+            durationSec: 3,
             startZ: 6.3,
             endZ: 11.2,
             swayX: 0.28,
@@ -1203,11 +1203,11 @@
             }
             revealStarted = true;
 
-            await playDialupOverlay();
-            await playStarIrisTransition();
-
-            stopIntroHeartPreview();
-            stopIntroHeartPreview = () => {};
+            // La escena se arma mientras corren las transiciones, asi no queda la intro congelada al final.
+            const overlaysDone = (async () => {
+                await playDialupOverlay();
+                await playStarIrisTransition();
+            })();
 
             let disposed = false;
             let rafId = 0;
@@ -1571,8 +1571,8 @@
                 babyRimMirror.position.set(-1.95, 0.78, 1.65);
                 scene.add(babyRimMirror);
 
-                await babyVideo.play().catch(() => {});
-                await babyVideoMirror.play().catch(() => {});
+                babyVideo.play().catch(() => {});
+                babyVideoMirror.play().catch(() => {});
             } catch {
                 babyVideo = null;
             }
@@ -1948,6 +1948,11 @@
                 composer.render();
                 rafId = requestAnimationFrame(animate);
             }
+
+            renderer.compile(scene, camera);
+            await overlaysDone;
+            stopIntroHeartPreview();
+            stopIntroHeartPreview = () => {};
 
             rafId = requestAnimationFrame(animate);
 
