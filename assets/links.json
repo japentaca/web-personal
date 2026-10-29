@@ -36,5 +36,15 @@
     "text": "Caminantes",
     "description": "Bípedos con locomoción procedural. Un mundo NPCs playMobil",
     "link": "https://jape.com.ar/proyectos/caminantes/?n=7&b=1700&c=bird"
+  },
+  {
+    "text": "Looper",
+    "description": "DJ automático",
+    "link": "https://looper.jape.com.ar"
+  },
+  {
+    "text": "Carrilion",
+    "description": "Cadenas de Markov para todos!!",
+    "link": "https://carrilion.jape.com.ar"
   }
 ]
