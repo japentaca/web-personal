@@ -1,49 +1,61 @@
 [
   {
     "text": "Espacio!",
+    "category": "Simulaciones",
     "description": "Planetas, efectos sonoros de JapeNtaca con textos y voz de Fernanda Orazi",
-    "link": " https://japentaca.github.io/espacio"
+    "link": "https://japentaca.github.io/espacio"
   },
   {
     "text": "Armonicos de Fibonacci",
+    "category": "Música",
     "description": "Generador de armonicos basado en la sucesión de Fibonacci con arpegiador y LFOs para modulación de parámetros.",
     "link": "https://japentaca.github.io/fibonacci_harmonics/"
-  },{
+  },
+  {
     "text": "Aros y Postes",
+    "category": "Simulaciones",
     "description": "Una cosa para quedarse mirando un rato cuando se está al gas",
     "link": "https://japentaca.github.io/aros-y-postes/"
   },
   {
     "text": "Música celular",
+    "category": "Música",
     "description": "Música generativa estocástica en base a células",
     "link": "https://japentaca.github.io/celula-madre/"
-  }, {
+  },
+  {
     "text": "Gorilas !",
+    "category": "Juegos",
     "description": "Emulación Web del clásico GORILLAS.BAS",
     "link": "https://gorillas.jape.com.ar"
   },
   {
     "text": "Pong Wars",
+    "category": "Juegos",
     "description": "Dos colores se disputan el territorio a pelotazos. Original de Koen van Gilst (koenvangilst.nl)",
     "link": "https://jape.com.ar/proyectos/pongwars/"
   },
   {
     "text": "Pong Wars 3D",
+    "category": "Juegos",
     "description": "Pong Wars en Three.js: terreno en altura, partículas y estelas. Basado en el original de Koen van Gilst (koenvangilst.nl)",
     "link": "https://jape.com.ar/proyectos/pongwars3d/"
   },
   {
     "text": "Caminantes",
+    "category": "Simulaciones",
     "description": "Bípedos con locomoción procedural. Un mundo NPCs playMobil. Realmente pasan cosas !",
     "link": "https://jape.com.ar/proyectos/caminantes/?n=7&b=1700&c=bird"
   },
   {
     "text": "Looper",
+    "category": "Música",
     "description": "DJ automático",
     "link": "https://looper.jape.com.ar"
   },
   {
     "text": "Carrilion",
+    "category": "Música",
     "description": "Cadenas de Markov para todos!!",
     "link": "https://carrilion.jape.com.ar"
   }
