@@ -42,6 +42,12 @@
     "link": "https://jape.com.ar/proyectos/pongwars3d/"
   },
   {
+    "text": "Ruta Centinela",
+    "category": "Juegos",
+    "description": "Carreras en 3D por la ruta, con música sintetizada: una canción por sector.",
+    "link": "https://jape.com.ar/proyectos/ruta-centinela/"
+  },
+  {
     "text": "Caminantes",
     "category": "Simulaciones",
     "description": "Bípedos con locomoción procedural. Un mundo NPCs playMobil. Realmente pasan cosas !",
