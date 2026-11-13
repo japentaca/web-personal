@@ -21,7 +21,9 @@ canvas.on { opacity: 1; }
   text-transform: lowercase; pointer-events: none;
   transition: opacity 1.8s ease;
 }
-body.idle #hint { opacity: 0; }
+/* The hint stays up until the sound has been switched on: browsers keep the
+   page silent until a click or key press, and it is easy to miss otherwise. */
+body.idle.sound #hint { opacity: 0; }
 #pause {
   position: fixed; top: 50%; left: 0; right: 0; text-align: center; transform: translateY(-50%);
   color: rgba(225, 235, 255, 0.75); font-size: 15px; letter-spacing: 0.5em;
@@ -601,7 +603,7 @@ let wakeLock = null;
 async function keepAwake() {
   try { if (!wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch {}
 }
-function startSound() { initAudio(); setHint(); keepAwake(); }
+function startSound() { initAudio(); document.body.classList.add('sound'); setHint(); keepAwake(); }
 setHint();
 wake(9000);
 window.addEventListener('mousemove', () => wake());
