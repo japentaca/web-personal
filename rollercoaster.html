@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Montaña rusa nocturna</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body { overflow: hidden; background: #000; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+body.idle { cursor: none; }
+canvas { display: block; opacity: 0; transition: opacity 5s ease; }
+canvas.on { opacity: 1; }
+#vignette {
+  position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 8, 0.6) 100%);
+}
+#hint {
+  position: fixed; bottom: 28px; left: 0; right: 0; text-align: center;
+  color: rgba(225, 235, 255, 0.6); font-size: 13px; letter-spacing: 0.16em;
+  text-transform: lowercase; pointer-events: none;
+  transition: opacity 1.8s ease;
+}
+body.idle #hint { opacity: 0; }
+#pause {
+  position: fixed; top: 50%; left: 0; right: 0; text-align: center; transform: translateY(-50%);
+  color: rgba(225, 235, 255, 0.75); font-size: 15px; letter-spacing: 0.5em;
+  pointer-events: none; opacity: 0; transition: opacity 0.6s ease;
+}
+#pause.on { opacity: 1; }
+#fps {
+  position: fixed; top: 14px; right: 18px; color: rgba(225, 235, 255, 0.5);
+  font: 12px monospace; pointer-events: none; display: none;
+}
+</style>
+</head>
+<body class="idle">
+<div id="vignette"></div>
+<div id="hint"></div>
+<div id="pause">pausa</div>
+<div id="fps"></div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+
+// ---------------------------------------------------------------------------
+// Renderer + post
+// ---------------------------------------------------------------------------
+let pixelRatio = Math.min(window.devicePixelRatio, 1.5);
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(pixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x040612, 0.0011);
+const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.3, 6000);
+
+// ---------------------------------------------------------------------------
+// Shared uniforms + palette. Everything in the world takes its colour from one
+// slowly drifting palette, so the whole scene changes mood together.
+// ---------------------------------------------------------------------------
+const U = {
+  uTime: { value: 0 },
+  uPhase: { value: 0 },    // slow global palette drift
+  uZone: { value: 0 },     // palette position where the camera is right now
+  uCamU: { value: 0 },     // camera position along the track, 0..1
+  uPx: { value: 1 },       // point-size scale
+  uHorizon: { value: new THREE.Color(0x040612) },
+};
+
+const GLSL = `
+uniform float uTime; uniform float uPhase; uniform float uZone; uniform float uCamU; uniform float uPx;
+uniform vec3 uHorizon;
+vec3 pal(float t) {
+  t = fract(t) * 4.0;
+  vec3 a = vec3(0.10, 0.80, 0.90), b = vec3(0.50, 0.35, 1.00), c = vec3(1.00, 0.35, 0.65), d = vec3(1.00, 0.66, 0.30);
+  float f = fract(t); f = f * f * (3.0 - 2.0 * f);
+  if (t < 1.0) return mix(a, b, f);
+  if (t < 2.0) return mix(b, c, f);
+  if (t < 3.0) return mix(c, d, f);
+  return mix(d, a, f);
+}
+float fogK(vec3 world) { float d = distance(world, cameraPosition) * 0.0011; return exp(-d * d); }
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+`;
+
+const PAL = [[0.10, 0.80, 0.90], [0.50, 0.35, 1.00], [1.00, 0.35, 0.65], [1.00, 0.66, 0.30]];
+function pal(t, out, k = 1) {
+  t = (((t % 1) + 1) % 1) * 4;
+  const i = Math.floor(t) % 4;
+  let f = t - Math.floor(t); f = f * f * (3 - 2 * f);
+  const a = PAL[i], b = PAL[(i + 1) % 4];
+  return out.setRGB((a[0] + (b[0] - a[0]) * f) * k, (a[1] + (b[1] - a[1]) * f) * k, (a[2] + (b[2] - a[2]) * f) * k);
+}
+const shader = (o) => new THREE.ShaderMaterial({ ...o, uniforms: { ...U, ...(o.uniforms || {}) } });
+
+// ---------------------------------------------------------------------------
+// Track: periodic functions of one parameter, so it always closes smoothly.
+// Gentle hills only — no chatter, nothing abrupt.
+// ---------------------------------------------------------------------------
+const N = 1800;
+const P = [], T = [], R = [], Up = [];
+(function buildTrack() {
+  const CTRL = 90, pts = [];
+  for (let i = 0; i < CTRL; i++) {
+    const a = (i / CTRL) * Math.PI * 2;
+    const r = 215 + Math.sin(a * 2) * 60 + Math.sin(a * 3 + 0.7) * 36 + Math.cos(a * 5 + 1.3) * 14;
+    const x = Math.cos(a) * r + Math.sin(a * 4 + 0.5) * 24;
+    const z = Math.sin(a) * r + Math.cos(a * 4 + 0.5) * 24;
+    const y = 62 + Math.sin(a * 2 - 0.3) * 36 + Math.sin(a * 3 + 1.1) * 14 + Math.sin(a * 5 + 2.0) * 5;
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.5);
+  curve.arcLengthDivisions = 6000;
+  for (let i = 0; i < N; i++) P.push(curve.getPointAt(i / N));
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < N; i++) {
+    const t = new THREE.Vector3().subVectors(P[(i + 1) % N], P[(i + N - 1) % N]).normalize();
+    const r = new THREE.Vector3().crossVectors(t, worldUp).normalize();
+    T.push(t); R.push(r); Up.push(new THREE.Vector3().crossVectors(r, t).normalize());
+  }
+})();
+let trackLen = 0;
+for (let i = 0; i < N; i++) trackLen += P[i].distanceTo(P[(i + 1) % N]);
+
+// Rails: two thin tubes built straight from the cached frames.
+function buildRail(offset, radius) {
+  const K = 6, pos = new Float32Array((N + 1) * K * 3), us = new Float32Array((N + 1) * K), idx = [];
+  const c = new THREE.Vector3();
+  for (let i = 0; i <= N; i++) {
+    const j = i % N;
+    c.copy(P[j]).addScaledVector(R[j], offset);
+    for (let k = 0; k < K; k++) {
+      const a = (k / K) * Math.PI * 2, o = (i * K + k) * 3;
+      const cr = Math.cos(a) * radius, cu = Math.sin(a) * radius;
+      pos[o] = c.x + R[j].x * cr + Up[j].x * cu;
+      pos[o + 1] = c.y + R[j].y * cr + Up[j].y * cu;
+      pos[o + 2] = c.z + R[j].z * cr + Up[j].z * cu;
+      us[i * K + k] = i / N;
+    }
+  }
+  for (let i = 0; i < N; i++) for (let k = 0; k < K; k++) {
+    const a = i * K + k, b = i * K + (k + 1) % K, d = (i + 1) * K + k, e = (i + 1) * K + (k + 1) % K;
+    idx.push(a, d, b, b, d, e);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aU', new THREE.BufferAttribute(us, 1));
+  g.setIndex(idx);
+  return g;
+}
+
+// A very broad, slow swell of light drifts forward along the track. It has to
+// stay wide and faint: a sharp pulse crossing the sleepers reads as a strobe.
+const PULSE = `
+float pulse(float u) { float w = 0.5 + 0.5 * cos(6.2831853 * (u * 12.0 - uTime * 0.2)); return w * w; }
+`;
+const railMat = shader({
+  side: THREE.DoubleSide,
+  vertexShader: `
+    attribute float aU; varying float vU; varying vec3 vWorld;
+    void main() { vU = aU; vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+  fragmentShader: GLSL + PULSE + `
+    varying float vU; varying vec3 vWorld;
+    void main() {
+      vec3 col = pal(vU + uPhase) * (0.42 + 0.3 * pulse(vU));
+      gl_FragColor = vec4(mix(uHorizon, col, fogK(vWorld)), 1.0);
+    }`,
+});
+for (const off of [-1, 1]) {
+  const m = new THREE.Mesh(buildRail(off, 0.09), railMat);
+  m.frustumCulled = false;
+  scene.add(m);
+}
+
+const _m4 = new THREE.Matrix4();
+function frameMatrix(i, lift, scale = 1) {
+  _m4.makeBasis(R[i], Up[i], T[i]);
+  if (scale !== 1) _m4.scale(new THREE.Vector3(scale, scale, scale));
+  return _m4.setPosition(P[i].x + Up[i].x * lift, P[i].y + Up[i].y * lift, P[i].z + Up[i].z * lift);
+}
+function instancedAlongTrack(geo, mat, indices, lift) {
+  const mesh = new THREE.InstancedMesh(geo, mat, indices.length);
+  const us = new Float32Array(indices.length);
+  indices.forEach((ti, k) => { mesh.setMatrixAt(k, frameMatrix(ti, lift)); us[k] = ti / N; });
+  geo.setAttribute('aU', new THREE.InstancedBufferAttribute(us, 1));
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
+}
+const INST_VERT = `
+  attribute float aU; varying float vU; varying vec3 vWorld;
+  void main() { vU = aU; vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0); vWorld = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`;
+
+// Sleepers: the steady rhythm passing underneath.
+const sleeperIdx = [];
+for (let i = 0; i < N; i += 3) sleeperIdx.push(i);
+instancedAlongTrack(new THREE.BoxGeometry(2.5, 0.05, 0.28), shader({
+  vertexShader: INST_VERT,
+  fragmentShader: GLSL + PULSE + `
+    varying float vU; varying vec3 vWorld;
+    void main() {
+      vec3 col = pal(vU + uPhase) * (0.09 + 0.1 * pulse(vU));
+      gl_FragColor = vec4(mix(uHorizon, col, fogK(vWorld)), 1.0);
+    }`,
+}), sleeperIdx, -0.05);
+
+// Rings to glide through: sparse on open stretches, close together in
+// "tunnels", absent in a few places so the view opens up.
+const ringIdx = [];
+for (let i = 0; i < N;) {
+  const u = i / N;
+  const tunnel = Math.sin(u * Math.PI * 2 * 5 + 1) > 0.55;
+  const gap = Math.sin(u * Math.PI * 2 * 3 + 2) < -0.65;
+  if (!gap) ringIdx.push(i);
+  i += tunnel ? 20 : 32;
+}
+instancedAlongTrack(new THREE.TorusGeometry(7, 0.09, 6, 72), shader({
+  vertexShader: INST_VERT,
+  fragmentShader: GLSL + PULSE + `
+    varying float vU; varying vec3 vWorld;
+    void main() {
+      float ahead = fract(vU - uCamU);                 // 0 = right in front of the rider
+      float wake = exp(-ahead * 40.0);                 // rings light up as you approach
+      // ...and dissolve before you reach them, so nothing bright ever whips
+      // past the edge of the view (close rings would strobe otherwise).
+      float near = smoothstep(9.0, 55.0, distance(vWorld, cameraPosition));
+      vec3 col = pal(vU + uPhase + 0.25) * (0.2 + 0.6 * wake + 0.1 * pulse(vU)) * near;
+      gl_FragColor = vec4(col * fogK(vWorld), 1.0);   // additive: fades to nothing, not to black
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+}), ringIdx, 2.4);
+
+// ---------------------------------------------------------------------------
+// Sky: gradient, slow aurora, a big moon.
+// ---------------------------------------------------------------------------
+const MOON = new THREE.Vector3(0.35, 0.2, -0.9).normalize();
+const sky = new THREE.Mesh(new THREE.SphereGeometry(3000, 48, 24), shader({
+  side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
+  uniforms: { uMoon: { value: MOON } },
+  vertexShader: `
+    varying vec3 vDir;
+    void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: GLSL + `
+    uniform vec3 uMoon; varying vec3 vDir;
+    float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + 17.0; a *= 0.5; } return v; }
+    void main() {
+      vec3 d = normalize(vDir);
+      float h = clamp(d.y, 0.0, 1.0);
+      vec3 col = mix(uHorizon, vec3(0.004, 0.006, 0.022), pow(h, 0.5));
+      vec2 q = d.xz / (abs(d.y) + 0.35);
+      float t = uTime * 0.012;
+      vec2 warp = vec2(fbm(q * 0.7 + vec2(t, 0.0)), fbm(q * 0.7 + vec2(5.2, -t)));
+      float a = fbm(q * 0.9 + warp * 1.6 + vec2(-t * 0.5, t * 0.3));
+      float ribbons = smoothstep(0.42, 0.8, a);
+      float mask = smoothstep(0.02, 0.28, d.y);
+      vec3 ac = mix(pal(uZone + 0.1), pal(uZone + 0.4), smoothstep(0.3, 0.7, warp.x));
+      col += ac * ribbons * mask * 0.32;
+      float m = max(dot(d, uMoon), 0.0);
+      col += vec3(1.0, 0.93, 0.82) * (smoothstep(0.9990, 0.9993, m) * 1.5 + pow(m, 700.0) * 0.3 + pow(m, 30.0) * 0.06);
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+}));
+sky.renderOrder = -10;
+sky.frustumCulled = false;
+scene.add(sky);
+
+// Stars
+const STARS = 2600;
+const starGeo = new THREE.BufferGeometry();
+{
+  const pos = new Float32Array(STARS * 3), seed = new Float32Array(STARS);
+  for (let i = 0; i < STARS; i++) {
+    const th = Math.random() * Math.PI * 2, y = Math.random() * 0.98 + 0.02, s = Math.sqrt(1 - y * y);
+    pos[i * 3] = Math.cos(th) * s * 2400; pos[i * 3 + 1] = y * 2400; pos[i * 3 + 2] = Math.sin(th) * s * 2400;
+    seed[i] = Math.random();
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  starGeo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+}
+const stars = new THREE.Points(starGeo, shader({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: GLSL + `
+    attribute float aSeed; varying float vA;
+    void main() {
+      vA = (0.35 + 0.65 * aSeed) * (0.7 + 0.3 * sin(uTime * (0.3 + aSeed) + aSeed * 40.0));
+      gl_PointSize = (1.2 + aSeed * aSeed * 2.6) * uPx;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    varying float vA;
+    void main() {
+      float d = length(gl_PointCoord - 0.5) * 2.0;
+      float a = smoothstep(1.0, 0.0, d);
+      gl_FragColor = vec4(vec3(0.85, 0.92, 1.0) * a * a * vA, 1.0);
+    }`,
+}));
+stars.frustumCulled = false;
+scene.add(stars);
+
+// ---------------------------------------------------------------------------
+// Water: a real planar reflection, softly rippled.
+// ---------------------------------------------------------------------------
+const water = new Reflector(new THREE.PlaneGeometry(14000, 14000), {
+  textureWidth: Math.floor(window.innerWidth * pixelRatio * 0.5),
+  textureHeight: Math.floor(window.innerHeight * pixelRatio * 0.5),
+  clipBias: 0.003,
+  multisample: 0,
+  shader: {
+    name: 'CalmWater',
+    uniforms: { color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null }, uTime: { value: 0 } },
+    vertexShader: `
+      uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 vWorld;
+      void main() {
+        vUv = textureMatrix * vec4(position, 1.0);
+        vec4 wp = modelMatrix * vec4(position, 1.0); vWorld = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: `
+      uniform sampler2D tDiffuse; uniform float uTime; varying vec4 vUv; varying vec3 vWorld;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      float hgt(vec2 p) {
+        return noise(p * 0.06 + vec2(uTime * 0.05, uTime * 0.03)) + 0.5 * noise(p * 0.17 - vec2(uTime * 0.07, -uTime * 0.04));
+      }
+      void main() {
+        vec3 toCam = cameraPosition - vWorld; float dist = length(toCam); vec3 V = toCam / dist;
+        vec2 p = vWorld.xz; float e = 0.6; float h0 = hgt(p);
+        vec2 g = vec2(hgt(p + vec2(e, 0.0)) - h0, hgt(p + vec2(0.0, e)) - h0) / e;
+        // Ripples fade out with distance so the horizon stays a clean line.
+        float att = smoothstep(1400.0, 150.0, dist) / (1.0 + dist * 0.006);
+        vec4 uv = vUv;
+        uv.xy += g * vec2(0.25, 0.7) * att * uv.w;
+        vec3 refl = texture2DProj(tDiffuse, uv).rgb;
+        float fres = 0.3 + 0.7 * pow(1.0 - clamp(V.y, 0.0, 1.0), 4.0);
+        gl_FragColor = vec4(vec3(0.003, 0.006, 0.015) + refl * fres, 1.0);
+      }`,
+  },
+});
+water.rotateX(-Math.PI / 2);
+scene.add(water);
+
+// ---------------------------------------------------------------------------
+// Standing stones with glowing tips, rising out of the water.
+// ---------------------------------------------------------------------------
+function nearTrackXZ(x, z, minDist) {
+  const md2 = minDist * minDist;
+  for (let i = 0; i < N; i += 5) {
+    const dx = x - P[i].x, dz = z - P[i].z;
+    if (dx * dx + dz * dz < md2) return true;
+  }
+  return false;
+}
+{
+  const COUNT = 170;
+  const geo = new THREE.CylinderGeometry(0.3, 1, 1, 4, 1);
+  geo.translate(0, 0.5, 0);
+  const mesh = new THREE.InstancedMesh(geo, shader({
+    vertexShader: `
+      attribute float aSeed; varying float vH; varying float vSeed; varying vec3 vWorld;
+      void main() {
+        vH = position.y; vSeed = aSeed;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0); vWorld = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: GLSL + `
+      varying float vH; varying float vSeed; varying vec3 vWorld;
+      void main() {
+        float breathe = 0.6 + 0.4 * sin(uTime * 0.25 + vSeed * 6.2831853);
+        vec3 col = vec3(0.006, 0.008, 0.02) + pal(uZone + vSeed * 0.25) * (pow(vH, 4.0) * 0.9 * breathe + 0.025);
+        gl_FragColor = vec4(mix(uHorizon, col, fogK(vWorld)), 1.0);
+      }`,
+  }), COUNT);
+  const seeds = new Float32Array(COUNT);
+  const q = new THREE.Quaternion(), yAxis = new THREE.Vector3(0, 1, 0), s = new THREE.Vector3(), p = new THREE.Vector3();
+  let placed = 0, tries = 0;
+  while (placed < COUNT && tries++ < 5000) {
+    const a = Math.random() * Math.PI * 2, d = 50 + Math.pow(Math.random(), 0.7) * 950;
+    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if (nearTrackXZ(x, z, 16)) continue;
+    const w = 3 + Math.random() * 6, h = 25 + Math.random() * Math.random() * 150;
+    mesh.setMatrixAt(placed, _m4.compose(p.set(x, 0, z), q.setFromAxisAngle(yAxis, Math.random() * Math.PI), s.set(w, h, w)));
+    seeds[placed++] = Math.random();
+  }
+  mesh.count = placed;
+  geo.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seeds, 1));
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+}
+
+// Huge slow rings floating far away, for a sense of scale.
+const farRings = [];
+for (let i = 0; i < 9; i++) {
+  const a = Math.random() * Math.PI * 2, d = 380 + Math.random() * 600;
+  const mesh = new THREE.Mesh(
+    new THREE.TorusGeometry(40 + Math.random() * 70, 0.6 + Math.random() * 0.8, 6, 96),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  mesh.position.set(Math.cos(a) * d, 90 + Math.random() * 190, Math.sin(a) * d);
+  mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+  scene.add(mesh);
+  farRings.push({ mesh, rx: (Math.random() - 0.5) * 0.06, ry: (Math.random() - 0.5) * 0.06, hue: Math.random() * 0.3 });
+}
+
+// ---------------------------------------------------------------------------
+// Lanterns drifting slowly upward (animated entirely on the GPU).
+// ---------------------------------------------------------------------------
+{
+  const COUNT = 750;
+  const pos = new Float32Array(COUNT * 3), seed = new Float32Array(COUNT);
+  for (let i = 0; i < COUNT; i++) {
+    const a = Math.random() * Math.PI * 2, d = 30 + Math.sqrt(Math.random()) * 520;
+    pos[i * 3] = Math.cos(a) * d; pos[i * 3 + 1] = Math.random() * 190; pos[i * 3 + 2] = Math.sin(a) * d;
+    seed[i] = Math.random();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  const pts = new THREE.Points(geo, shader({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: GLSL + `
+      attribute float aSeed; varying float vA; varying float vSeed;
+      void main() {
+        vec3 p = position;
+        p.y = mod(p.y + uTime * (0.6 + aSeed * 1.2), 190.0);
+        p.x += sin(uTime * 0.21 + aSeed * 50.0) * 3.0;
+        p.z += cos(uTime * 0.17 + aSeed * 80.0) * 3.0;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        float edge = smoothstep(0.0, 12.0, p.y) * smoothstep(190.0, 150.0, p.y);
+        vA = edge * smoothstep(2.0, 14.0, -mv.z) * fogK((modelMatrix * vec4(p, 1.0)).xyz)
+           * (0.65 + 0.35 * sin(uTime * (0.8 + aSeed) + aSeed * 30.0));
+        vSeed = aSeed;
+        gl_PointSize = clamp((1.2 + aSeed * 1.8) * uPx * 420.0 / -mv.z, 1.0, 70.0 * uPx);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: GLSL + `
+      varying float vA; varying float vSeed;
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        if (d > 1.0) discard;
+        float g = exp(-d * 5.0) * 1.3 + exp(-d * 1.8) * 0.22;
+        vec3 c = mix(vec3(1.0, 0.72, 0.38), pal(uZone + vSeed * 0.2), 0.35);
+        gl_FragColor = vec4(c * g * vA, 1.0);
+      }`,
+  }));
+  pts.frustumCulled = false;
+  scene.add(pts);
+}
+
+// ---------------------------------------------------------------------------
+// Composer: MSAA scene -> bloom -> tone mapping
+// ---------------------------------------------------------------------------
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(
+  window.innerWidth * pixelRatio, window.innerHeight * pixelRatio, { type: THREE.HalfFloatType, samples: 4 }
+));
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.32, 0.6, 0.3));
+composer.addPass(new OutputPass());
+
+function applySize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(pixelRatio);
+  renderer.setSize(w, h);
+  composer.setSize(Math.floor(w * pixelRatio), Math.floor(h * pixelRatio));
+  water.getRenderTarget().setSize(Math.floor(w * pixelRatio * 0.5), Math.floor(h * pixelRatio * 0.5));
+  U.uPx.value = pixelRatio * h / 900;
+}
+applySize();
+window.addEventListener('resize', applySize);
+
+// ---------------------------------------------------------------------------
+// Sound: a slow pad, wind that follows the speed, and a soft chime for every
+// ring you pass through — the ride plays its own music box.
+// ---------------------------------------------------------------------------
+let audio = null, muted = false;
+const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+const SCALE = [62, 64, 66, 69, 71, 74, 76, 78, 81, 83];           // D major pentatonic
+const CHORDS = [[38, 45, 54, 57], [35, 50, 54, 59], [31, 50, 55, 59], [33, 52, 57, 62]];
+let noteI = 4, chordI = 0, nextChord = 0;
+
+function initAudio() {
+  if (audio) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  const ctx = new AC();
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0, ctx.currentTime);
+  master.gain.linearRampToValueAtTime(0.85, ctx.currentTime + 6);
+  master.connect(ctx.destination);
+
+  const len = Math.floor(ctx.sampleRate * 5);
+  const ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8);
+  }
+  const reverb = ctx.createConvolver(); reverb.buffer = ir;
+  const wet = ctx.createGain(); wet.gain.value = 0.55;
+  reverb.connect(wet); wet.connect(master);
+
+  // Pad
+  const padFilter = ctx.createBiquadFilter(); padFilter.type = 'lowpass'; padFilter.frequency.value = 520; padFilter.Q.value = 0.6;
+  const padGain = ctx.createGain(); padGain.gain.value = 0.07;
+  padFilter.connect(padGain); padGain.connect(master); padGain.connect(reverb);
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.045;
+  const lfoGain = ctx.createGain(); lfoGain.gain.value = 240;
+  lfo.connect(lfoGain); lfoGain.connect(padFilter.frequency); lfo.start();
+  const voices = CHORDS[0].map((m) => {
+    const oscs = [['sawtooth', -7], ['triangle', 6]].map(([type, det]) => {
+      const o = ctx.createOscillator(); o.type = type; o.detune.value = det; o.frequency.value = midiHz(m);
+      const g = ctx.createGain(); g.gain.value = type === 'sawtooth' ? 0.16 : 0.3;
+      o.connect(g); g.connect(padFilter); o.start();
+      return o;
+    });
+    return oscs;
+  });
+
+  // Wind
+  const nb = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+  const nd = nb.getChannelData(0);
+  let lastN = 0;
+  for (let i = 0; i < nd.length; i++) { lastN = lastN * 0.97 + (Math.random() * 2 - 1) * 0.03; nd[i] = lastN * 6; }
+  const wind = ctx.createBufferSource(); wind.buffer = nb; wind.loop = true;
+  const windFilter = ctx.createBiquadFilter(); windFilter.type = 'bandpass'; windFilter.frequency.value = 500; windFilter.Q.value = 0.4;
+  const windGain = ctx.createGain(); windGain.gain.value = 0;
+  wind.connect(windFilter); windFilter.connect(windGain); windGain.connect(master); wind.start();
+
+  audio = { ctx, master, reverb, voices, windGain, windFilter };
+  nextChord = 26;
+}
+
+function chime() {
+  if (!audio || muted || audio.ctx.state !== 'running') return;
+  const { ctx, master, reverb } = audio, now = ctx.currentTime;
+  const steps = [-2, -1, -1, 1, 1, 2];
+  noteI += steps[Math.floor(Math.random() * steps.length)];
+  if (noteI < 0) noteI = 1;
+  if (noteI >= SCALE.length) noteI = SCALE.length - 2;
+  const f = midiHz(SCALE[noteI]);
+  const out = ctx.createGain(); out.gain.value = 1;
+  let dest = out;
+  if (ctx.createStereoPanner) {
+    const pan = ctx.createStereoPanner(); pan.pan.value = (Math.random() - 0.5) * 0.9;
+    out.connect(pan); dest = pan;
+  }
+  const dry = ctx.createGain(); dry.gain.value = 0.5;
+  dest.connect(dry); dry.connect(master); dest.connect(reverb);
+  for (const [mult, peak, dur] of [[1, 0.085, 4.2], [2, 0.022, 1.8], [3.01, 0.008, 0.9]]) {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f * mult;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(peak, now + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    o.connect(g); g.connect(out); o.start(now); o.stop(now + dur + 0.1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Minimal UI: nothing on screen unless the mouse moves.
+// ---------------------------------------------------------------------------
+const hint = document.getElementById('hint');
+const pauseEl = document.getElementById('pause');
+const fpsEl = document.getElementById('fps');
+let idleTimer = 0, paused = false, showFps = false;
+function setHint() {
+  hint.textContent = (audio ? '' : 'clic para el sonido · ') + 'F pantalla completa · espacio pausa' + (audio ? ' · M silencio' : '');
+}
+function wake(ms = 3500) {
+  document.body.classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), ms);
+}
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+}
+let wakeLock = null;
+async function keepAwake() {
+  try { if (!wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch {}
+}
+function startSound() { initAudio(); setHint(); keepAwake(); }
+setHint();
+wake(9000);
+window.addEventListener('mousemove', () => wake());
+window.addEventListener('pointerdown', () => { startSound(); wake(); });
+window.addEventListener('dblclick', toggleFullscreen);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && audio) keepAwake(); });
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.code === 'KeyP') {
+    e.preventDefault();
+    paused = !paused;
+    pauseEl.classList.toggle('on', paused);
+    if (audio) paused ? audio.ctx.suspend() : audio.ctx.resume();
+    return;
+  }
+  startSound();
+  if (e.code === 'KeyF') toggleFullscreen();
+  else if (e.code === 'KeyM' && audio) {
+    muted = !muted;
+    audio.master.gain.cancelScheduledValues(audio.ctx.currentTime);
+    audio.master.gain.setTargetAtTime(muted ? 0 : 0.85, audio.ctx.currentTime, 0.4);
+  } else if (e.code === 'KeyI') {
+    showFps = !showFps;
+    fpsEl.style.display = showFps ? 'block' : 'none';
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Ride
+// ---------------------------------------------------------------------------
+const BASE_SPEED = 15;              // world units per second — a glide, not a thrill
+let t = 0, time = 0, last = performance.now();
+let speedMult = 1, lean = 0, firstFrame = true, prevF = 0;
+const smoothPos = new THREE.Vector3(), smoothLook = new THREE.Vector3();
+const smoothTan = new THREE.Vector3(), smoothRight = new THREE.Vector3(), smoothUp = new THREE.Vector3();
+const _tan = new THREE.Vector3(), _pos = new THREE.Vector3(), _look = new THREE.Vector3();
+const _right = new THREE.Vector3(), _up = new THREE.Vector3(), _camUp = new THREE.Vector3();
+const _target = new THREE.Vector3(), _d = new THREE.Vector3();
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+const _c = new THREE.Color();
+let fpsFrames = 0, fpsT0 = performance.now(), slowWindows = 0, windows = 0;
+
+function sample(arr, f, out) {
+  const i = Math.floor(f), k = f - i;
+  return out.copy(arr[((i % N) + N) % N]).lerp(arr[(((i + 1) % N) + N) % N], k);
+}
+
+function frame(nowMs) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((nowMs - last) / 1000, 0.05);
+  last = nowMs;
+
+  // FPS + adaptive quality: if the machine struggles, quietly drop resolution.
+  fpsFrames++;
+  if (nowMs - fpsT0 >= 2000) {
+    const fps = fpsFrames * 1000 / (nowMs - fpsT0);
+    if (showFps) fpsEl.textContent = Math.round(fps) + ' fps · x' + pixelRatio.toFixed(2);
+    if (!paused && !document.hidden && ++windows > 2) {
+      slowWindows = fps < 42 ? slowWindows + 1 : 0;
+      if (slowWindows >= 2 && pixelRatio > 0.75) { pixelRatio = Math.max(0.75, pixelRatio - 0.25); applySize(); slowWindows = 0; }
+    }
+    fpsFrames = 0; fpsT0 = nowMs;
+  }
+  if (paused) return;
+  time += dt;
+
+  // --- position on the track ---
+  const fIdx = t * N;
+  const tan = sample(T, fIdx, _tan).normalize();
+  const pNow = sample(P, fIdx, _pos);
+  const pLook = sample(P, fIdx + 24, _look);
+
+  // Speed swells gently downhill and eases uphill.
+  const rawMult = Math.max(0.65, Math.min(1.7, 1 - tan.y * 1.7));
+  speedMult += (rawMult - speedMult) * Math.min(1, dt * 0.8);
+  t = (t + BASE_SPEED * speedMult * dt / trackLen) % 1;
+
+  const right = _right.crossVectors(tan, WORLD_UP).normalize();
+  const up = _up.crossVectors(right, tan).normalize();
+  const targetPos = _target.copy(pNow).addScaledVector(up, 2.4).addScaledVector(tan, -1.0);
+  pLook.y += 1.6;
+
+  if (firstFrame) {
+    smoothPos.copy(targetPos); smoothLook.copy(pLook);
+    smoothTan.copy(tan); smoothRight.copy(right); smoothUp.copy(up);
+    speedMult = rawMult; prevF = fIdx; firstFrame = false;
+    renderer.domElement.classList.add('on');
+  }
+  const posA = 1 - Math.exp(-dt * 5), lookA = 1 - Math.exp(-dt * 2.5);
+  smoothPos.lerp(targetPos, posA);
+  smoothLook.lerp(pLook, lookA);
+  smoothTan.lerp(tan, lookA).normalize();
+  smoothRight.lerp(right, lookA).normalize();
+  smoothUp.lerp(up, lookA).normalize();
+
+  camera.position.copy(smoothPos);
+  camera.up.copy(_camUp.copy(WORLD_UP).lerp(smoothUp, 0.08).normalize());
+  camera.lookAt(smoothLook);
+
+  // Soft banking into turns + a slow, dreamy drift of the gaze.
+  const lateral = _d.subVectors(T[(Math.floor(fIdx) + 45) % N], smoothTan).dot(smoothRight);
+  const targetLean = Math.max(-0.07, Math.min(0.07, lateral * 0.3));
+  lean += (targetLean - lean) * Math.min(1, dt * 1.2);
+  camera.rotateY(Math.sin(time * 0.11) * 0.05);
+  camera.rotateX(Math.sin(time * 0.07 + 1.0) * 0.02);
+  camera.rotateZ(lean);
+
+  // --- rings passed this frame -> chimes ---
+  let adv = fIdx - prevF; if (adv < 0) adv += N;
+  if (adv < 60) for (let i = 0; i < ringIdx.length; i++) {
+    let d = ringIdx[i] - prevF; if (d < 0) d += N;
+    if (d < adv) { chime(); break; }
+  }
+  prevF = fIdx;
+
+  // --- world mood ---
+  U.uTime.value = time;
+  U.uPhase.value = time / 200;
+  U.uCamU.value = t;
+  U.uZone.value = t + U.uPhase.value;
+  pal(U.uZone.value, U.uHorizon.value, 0.075);
+  U.uHorizon.value.r += 0.015; U.uHorizon.value.g += 0.018; U.uHorizon.value.b += 0.05;
+  scene.fog.color.copy(U.uHorizon.value);
+  // The mirrored render clips the sky dome right at the waterline; clearing to
+  // the horizon colour keeps that sliver from showing up as a dark band.
+  renderer.setClearColor(U.uHorizon.value);
+  water.material.uniforms.uTime.value = time;
+  sky.position.copy(camera.position);
+  stars.position.copy(camera.position);
+
+  for (let i = 0; i < farRings.length; i++) {
+    const fr = farRings[i];
+    fr.mesh.rotation.x += fr.rx * dt; fr.mesh.rotation.y += fr.ry * dt;
+    pal(U.uZone.value + fr.hue, fr.mesh.material.color, 0.55);
+  }
+
+  // --- sound follows the ride ---
+  if (audio) {
+    const now = audio.ctx.currentTime;
+    audio.windGain.gain.setTargetAtTime(0.012 + Math.max(0, speedMult - 0.65) * 0.045, now, 0.5);
+    audio.windFilter.frequency.setTargetAtTime(320 + speedMult * 330, now, 0.5);
+    if (time > nextChord) {
+      chordI = (chordI + 1) % CHORDS.length;
+      audio.voices.forEach((oscs, v) => oscs.forEach((o) => o.frequency.setTargetAtTime(midiHz(CHORDS[chordI][v]), now, 2.5)));
+      nextChord = time + 26;
+    }
+  }
+
+  composer.render();
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
